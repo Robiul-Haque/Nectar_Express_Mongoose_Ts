@@ -4,8 +4,8 @@ import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 // import routes from './routes';
-import notFound from './middlewares/error.middleware';
-import errorHandler from './middlewares/error.middleware';
+import notFound from './middlewares/errorHandler';
+import errorHandler from './middlewares/errorHandler';
 import { globalRateLimiter } from './middlewares/rateLimiter';
 
 const app = express();

@@ -1,32 +1,21 @@
+import { Model } from "mongoose";
+
 export interface IUser {
-    _id?: string;
     name: string;
     email: string;
     password?: string;
-    role?: 'admin' | 'user';
-    phone?: string;
+    provider: "email" | "google" | "facebook";
+    role: "user" | "admin";
     avatar?: string;
-    provider?: 'google' | 'facebook' | 'email';
+    isVerified: boolean;
+    otp?: string;
+    otpExpires?: Date;
     createdAt?: Date;
     updatedAt?: Date;
 }
 
-export interface IUserRegister {
-    name: string;
-    email: string;
-    password?: string;
-    phone?: string;
-    avatar?: string;
-    provider?: 'google' | 'facebook' | 'email';
+export interface IUserMethods {
+    comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
-export interface IUserResponse {
-    _id: string;
-    name: string;
-    email: string;
-    role: string;
-    phone?: string;
-    avatar?: string;
-    provider?: string;
-    token?: string;
-}
+export type UserModel = Model<IUser, {}, IUserMethods>;
