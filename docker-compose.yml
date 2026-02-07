@@ -9,20 +9,31 @@ services:
     depends_on:
       - mongo
     restart: unless-stopped
-    healthcheck:
-      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:8000', r => process.exit(r.statusCode === 200 ? 0 : 1))" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   mongo:
     image: mongo:7
     container_name: nectar-mongo
     restart: unless-stopped
+
+    command: [ "mongod", "--quiet", "--logpath", "/dev/stdout", "--logappend", "--setParameter", "logLevel=0" ]
+
     environment:
       MONGO_INITDB_DATABASE: nectar
+
     volumes:
       - mongo-data:/data/db
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
 volumes:
   mongo-data:
