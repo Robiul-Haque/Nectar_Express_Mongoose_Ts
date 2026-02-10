@@ -27,6 +27,11 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
             enum: ["email", "google", "facebook"],
             required: true
         },
+        fcmTokens: {
+            type: [String],
+            default: [],
+            select: false
+        },
         role: {
             type: String,
             enum: ["user", "admin"],

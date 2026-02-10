@@ -7,6 +7,7 @@ import otpGenerator from "../../utils/otpGenerator";
 import { sendOTPEmail } from "../../utils/sendOtpEmail";
 import logger from "../../utils/logger";
 import { emailRegisterSchema, otpVerifySchema } from "./auth.validation";
+import { firebaseAdmin } from "../../config/firebaseAdmin.config";
 
 export const signUp = catchAsync(async (req: Request, res: Response) => {
     // 1️⃣ Validate request body
@@ -92,4 +93,50 @@ export const verifyOTP = catchAsync(async (req: Request, res: Response) => {
     await user.save();
 
     return sendResponse(res, status.OK, "Email verified successfully");
+});
+
+export const googleLogin = catchAsync(async (req: Request, res: Response) => {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+        return sendResponse(res, status.BAD_REQUEST, "Firebase ID token is required");
+    }
+
+    // Verify Firebase Google token
+    const decodedToken = await firebaseAdmin.auth().verifyIdToken(idToken);
+
+    const { email, name, picture } = decodedToken;
+
+    if (!email) {
+        return sendResponse(res, status.UNAUTHORIZED, "Invalid Google account");
+    }
+
+    // Check if user already exists (google provider)
+    let user = await User.findOne({ email, provider: "google" });
+
+    // If user does not exist, create new one
+    if (!user) {
+        user = await User.create({ name: name || email.split("@")[0], email, provider: "google", avatar: picture || "", isVerified: true, role: "user" });
+    }
+
+    // Generate JWT
+    const token = signToken({ userId: user._id, role: user.role, provider: user.provider });
+
+    // Send response
+    return sendResponse(
+        res,
+        status.OK,
+        "Google login successful",
+        {
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                avatar: user.avatar,
+                provider: user.provider,
+            },
+        }
+    );
 });

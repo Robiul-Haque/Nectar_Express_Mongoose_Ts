@@ -5,6 +5,7 @@ export interface IUser {
     email: string;
     password?: string;
     provider: "email" | "google" | "facebook";
+    fcmTokens?: string[];
     role: "user" | "admin";
     avatar?: string;
     isVerified: boolean;

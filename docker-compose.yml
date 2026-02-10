@@ -37,3 +37,54 @@ services:
 
 volumes:
   mongo-data:
+
+# services:
+#   app:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     container_name: nectar-api
+#     ports:
+#       - "8000:8000"
+#     env_file:
+#       - .env
+#     depends_on:
+#       - mongo
+#     restart: unless-stopped
+
+#     # Production logging optimization
+#     logging:
+#       driver: "json-file"
+#       options:
+#         max-size: "10m"
+#         max-file: "3"
+
+#     # Volumes: node_modules inside container + optional source sync for dev
+#     volumes:
+#       - /app/node_modules # node_modules safe inside container
+#       # - ./src:/app/src         # uncomment only for dev hot reload
+
+#   mongo:
+#     image: mongo:7
+#     container_name: nectar-mongo
+#     restart: unless-stopped
+
+#     command: [ "mongod", "--quiet", "--logpath", "/dev/stdout", "--logappend", "--setParameter", "logLevel=0" ]
+
+#     environment:
+#       MONGO_INITDB_DATABASE: nectar
+
+#     # Persistent volume for data
+#     volumes:
+#       - mongo-data:/data/db
+
+#     # Logging optimization
+#     logging:
+#       driver: json-file
+#       options:
+#         max-size: "5m"
+#         max-file: "2"
+
+# # Named volumes for persistent data
+# volumes:
+#   mongo-data:
