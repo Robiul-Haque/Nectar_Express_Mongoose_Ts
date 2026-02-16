@@ -18,9 +18,11 @@ async function bootstrap() {
             process.exit(1);
         });
 
+    // Enable query logging for docker
+    mongoose.set("debug", true);
+
     // 3️⃣ SMTP verify (background — NON BLOCKING)
     if (env.NODE_ENV !== 'production') verifySMTP();
-
 
     // 4️⃣ Graceful shutdown
     process.on('SIGTERM', async () => {

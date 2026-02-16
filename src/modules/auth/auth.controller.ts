@@ -170,3 +170,93 @@ export const googleLogin = catchAsync(async (req: Request, res: Response) => {
         }
     );
 });
+
+export const facebookLogin = catchAsync(async (req: Request, res: Response) => {
+    const { idToken, fcmToken } = req.body;
+
+    if (!idToken) {
+        return sendResponse(res,status.BAD_REQUEST,"Firebase ID token is required");
+    }
+
+    // Verify Firebase ID token (revocation check enabled)
+    const decodedToken = await firebaseAdmin.auth().verifyIdToken(idToken, true);
+
+    const { email, name, picture, firebase } = decodedToken;
+
+    // Strict provider validation
+    if (!firebase?.sign_in_provider?.includes("facebook.com")) {
+        return sendResponse(res,status.UNAUTHORIZED,"Invalid Facebook authentication");
+    }
+
+    if (!email) {
+        return sendResponse(res,status.UNAUTHORIZED,"Email not available from Facebook account");
+    }
+
+    // Find existing user by email
+    let user = await User.findOne({ email });
+
+    if (!user) {
+        // Create new Facebook user
+        user = await User.create({
+            name: name || email.split("@")[0],
+            email,
+            provider: "facebook",
+            avatar: picture || "",
+            isVerified: true,
+            role: "user",
+        });
+    } else {
+        // Handle provider switch or linking
+        if (user.provider !== "facebook") {
+            user.provider = "facebook";
+        }
+
+        user.isVerified = true;
+
+        // Optional: Keep avatar updated
+        if (picture && user.avatar !== picture) {
+            user.avatar = picture;
+        }
+
+        await user.save();
+    }
+
+    // Add FCM token (idempotent)
+    if (fcmToken) {
+        await User.updateOne({ _id: user._id },{ $addToSet: { fcmTokens: fcmToken } });
+    }
+
+    // Issue backend JWT
+    const accessToken = createToken(
+        "access",
+        {
+            sub: user._id.toString(),
+            role: user.role,
+            provider: user.provider,
+        },
+        {
+            secret: env.JWT_ACCESS_TOKEN,
+            expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"],
+            issuer: "nectar-api",
+            audience: "nectar-users",
+        }
+    );
+
+    return sendResponse(
+        res,
+        status.OK,
+        "Facebook login successful",
+        {
+            accessToken,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                avatar: user.avatar,
+                provider: user.provider,
+            },
+        }
+    );
+});
+
