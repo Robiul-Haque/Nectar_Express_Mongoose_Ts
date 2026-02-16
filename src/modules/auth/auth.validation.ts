@@ -10,7 +10,7 @@ const passwordSchema = z
 
 export const emailRegisterSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
-    email: z.string().email("Invalid email address"),
+    email: z.email("Invalid email address"),
     password: passwordSchema,
     role: z.enum(["user", "admin"]).optional(),
 });
@@ -21,8 +21,30 @@ export const otpVerifySchema = z.object({
 });
 
 export const emailLoginSchema = z.object({
-    email: z.string().email("Invalid email address"),
+    email: z.email("Invalid email address").trim().toLowerCase(),
     password: passwordSchema,
+    fcmToken: z.string().min(10, "Invalid FCM token").optional(),
+    platform: z.enum(["android", "ios", "web"]).optional(),
+    deviceId: z.string().max(200).optional().nullable()
+})
+    .superRefine((data, ctx) => {
+        if (data.fcmToken && !data.platform) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Platform is required when fcmToken is provided",
+                path: ["platform"]
+            });
+        }
+    });
+
+export const forgotPasswordSchema = z.object({
+    email: z.string().email("Invalid email address")
+});
+
+export const resetPasswordSchema = z.object({
+    email: z.email("Invalid email address"),
+    token: z.string().min(4, "Invalid token"),
+    newPassword: passwordSchema
 });
 
 export const googleLoginSchema = z.object({

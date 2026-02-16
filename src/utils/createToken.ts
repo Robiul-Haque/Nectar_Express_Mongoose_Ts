@@ -6,6 +6,7 @@ export interface JwtPayload {
     sub: string;
     role?: string;
     provider?: string;
+    v?: number;
 }
 
 export interface TokenConfig {
@@ -16,11 +17,16 @@ export interface TokenConfig {
     algorithm?: Algorithm;
 }
 
-export const createToken = (type: TokenType,payload: JwtPayload,config: TokenConfig): string => {
-    if (!config.secret) throw new Error("JWT secret is not defined");
-    if (!payload.sub) throw new Error("JWT payload must contain 'sub'");
+export const createToken = (type: TokenType, payload: JwtPayload, config: TokenConfig): string => {
+    if (!config.secret) {
+        throw new Error("JWT secret is not defined");
+    }
 
-    const finalPayload: JwtPayload = type === "refresh" ? { sub: payload.sub } : { ...payload };
+    if (!payload.sub) {
+        throw new Error("JWT payload must contain 'sub'");
+    }
+
+    const finalPayload: JwtPayload = type === "refresh" ? { sub: payload.sub, v: payload.v } : { ...payload };
 
     const options: SignOptions = {
         algorithm: config.algorithm ?? "HS256",
