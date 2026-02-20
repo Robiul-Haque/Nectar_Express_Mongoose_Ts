@@ -13,7 +13,7 @@ import { env } from "../../config/env";
 import { SignOptions } from "jsonwebtoken";
 
 export const signUp = catchAsync(async (req: Request, res: Response) => {
-    // 1️⃣ Validate request body
+    // Validate request body
     const parsed = emailRegisterSchema.safeParse(req.body);
 
     if (!parsed.success) {
@@ -22,13 +22,13 @@ export const signUp = catchAsync(async (req: Request, res: Response) => {
 
     const { name, email, password, role = "user" } = parsed.data;
 
-    // 2️⃣ Check if email already exists
+    //  Check if email already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
         return sendResponse(res, status.BAD_REQUEST, "Email already registered");
     }
 
-    // 3️⃣ If registering as admin, check if an admin already exists
+    // If registering as admin, check if an admin already exists
     if (role === "admin") {
         const existingAdmin = await User.findOne({ role: "admin" });
         if (existingAdmin) {
@@ -36,10 +36,9 @@ export const signUp = catchAsync(async (req: Request, res: Response) => {
         }
     }
 
-    // 4️⃣ Generate OTP
-    const { otp, otpExpires } = otpGenerator(4, 10); // 4-digit OTP, 10 min expiry
+    // Generate OTP
+    const { otp, otpExpires } = otpGenerator(6, 10); // 6-digit OTP, 10 min expiry
 
-    // 5️⃣ Create user in DB
     const user = await User.create({
         name,
         email,
@@ -50,12 +49,11 @@ export const signUp = catchAsync(async (req: Request, res: Response) => {
         otpExpires,
     });
 
-    // 6️⃣ Send OTP email asynchronously (non-blocking)
+    // Send OTP email asynchronously (non-blocking)
     sendOTPEmail({ to: email, toName: name, otp }).catch((err: Error) =>
         logger.error(`[OTP Email Async Error] ${err.message}`)
     );
 
-    // 7️⃣ Respond immediately
     return sendResponse(res, status.CREATED, "User registered successfully. OTP sent to email", {
         userId: user._id,
         name: name,
@@ -102,51 +100,28 @@ export const emailLogin = catchAsync(async (req: Request, res: Response) => {
     const parsed = emailLoginSchema.safeParse(req.body);
 
     if (!parsed.success) {
-        return sendResponse(
-            res,
-            status.BAD_REQUEST,
-            "Invalid input",
-            parsed.error.flatten()
-        );
+        return sendResponse(res, status.BAD_REQUEST, "Invalid input", parsed.error.flatten());
     }
 
     const { email, password, fcmToken, platform, deviceId } = parsed.data;
 
-    const user = await User.findOne({
-        email,
-        provider: "email"
-    }).select("+password");
+    const user = await User.findOne({ email, provider: "email" }).select("+password");
 
     if (!user) {
-        return sendResponse(
-            res,
-            status.UNAUTHORIZED,
-            "Invalid email or password"
-        );
+        return sendResponse(res, status.UNAUTHORIZED, "Invalid email or password");
     }
 
     const isMatch = await user.comparePassword(password);
 
     if (!isMatch) {
-        return sendResponse(
-            res,
-            status.UNAUTHORIZED,
-            "Invalid email or password"
-        );
+        return sendResponse(res, status.UNAUTHORIZED, "Invalid email or password");
     }
 
     if (!user.isVerified) {
-        return sendResponse(
-            res,
-            status.UNAUTHORIZED,
-            "Account not verified"
-        );
+        return sendResponse(res, status.UNAUTHORIZED, "Account not verified");
     }
 
-    /* =====================
-       5️⃣ Device Token Upsert (Atomic + Safe)
-    ===================== */
-
+    // Device Token Upsert
     if (fcmToken && platform) {
         await User.updateOne(
             {
@@ -165,7 +140,6 @@ export const emailLogin = catchAsync(async (req: Request, res: Response) => {
             }
         );
 
-        // Update lastActive if device exists
         await User.updateOne(
             {
                 _id: user._id,
@@ -179,18 +153,11 @@ export const emailLogin = catchAsync(async (req: Request, res: Response) => {
         );
     }
 
-    /* =====================
-       6️⃣ Update last login
-    ===================== */
-
+    // Update last login
     user.lastLoginAt = new Date();
     await user.save();
 
-
-    /* =====================
-       7️⃣ Generate JWT Tokens
-    ===================== */
-
+    // Generate Tokens
     const accessToken = createToken(
         "access",
         {
@@ -221,20 +188,16 @@ export const emailLogin = catchAsync(async (req: Request, res: Response) => {
         }
     );
 
-    /* =====================
-       8️⃣ Send Clean Response
-    ===================== */
+    // Set Refresh Token in HTTP-Only Cookie
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production", // true in production
+        sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+    });
 
     return sendResponse(res, status.OK, "Login successful", {
-        accessToken,
-        refreshToken,
-        user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            avatar: user.avatar
-        }
+        accessToken
     });
 });
 
@@ -247,24 +210,20 @@ export const forgotPassword = catchAsync(async (req: Request, res: Response) => 
 
     const { email } = parsed.data;
 
-    // 1️⃣ Check if user exists and is email provider
+    // Check if user exists and is email provider
     const user = await User.findOne({ email, provider: "email" });
-    if (!user) {
-        // ⚠️ Don't leak whether user exists
-        return sendResponse(res, status.OK, "If the email exists, a reset token has been sent");
-    }
+    if (!user) return sendResponse(res, status.OK, "If the email exists, a reset token has been sent");
 
-    // 2️⃣ Generate OTP / Reset Token
+    // Generate OTP / Reset Token
     const { otp, otpExpires } = otpGenerator(6, 10);
 
     user.otp = otp;
     user.otpExpires = otpExpires;
     await user.save();
 
-    // 3️⃣ Send OTP Email asynchronously
+    // Send OTP Email asynchronously
     sendOTPEmail({ to: email, toName: user.name, otp }).catch(err => logger.error(`[Forgot Password Email Error]: ${err.message}`));
 
-    // 4️⃣ Response
     return sendResponse(res, status.OK, "If the email exists, a reset token has been sent");
 });
 
@@ -275,7 +234,7 @@ export const resetPassword = catchAsync(async (req: Request, res: Response) => {
         return sendResponse(res, status.BAD_REQUEST, "Invalid input", parsed.error.format());
     }
 
-    const { email, token, newPassword } = parsed.data;
+    const { email, otp, newPassword } = parsed.data;
 
     // 1️⃣ Find user
     const user = await User.findOne({ email, provider: "email" }).select("+password +otp +otpExpires");
@@ -284,7 +243,7 @@ export const resetPassword = catchAsync(async (req: Request, res: Response) => {
     }
 
     // 2️⃣ Validate OTP
-    if (!user.otp || !user.otpExpires || user.otp !== token || user.otpExpires < new Date()) {
+    if (!user.otp || !user.otpExpires || user.otp !== otp || user.otpExpires < new Date()) {
         return sendResponse(res, status.BAD_REQUEST, "Invalid or expired token");
     }
 
@@ -509,4 +468,94 @@ export const facebookLogin = catchAsync(async (req: Request, res: Response) => {
             },
         }
     );
+});
+
+
+// Admin controllers
+export const adminLogin = catchAsync(async (req: Request, res: Response) => {
+    const parsed = emailLoginSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+        return sendResponse(
+            res,
+            status.BAD_REQUEST,
+            "Invalid input",
+            parsed.error.flatten()
+        );
+    }
+
+    const { email, password } = parsed.data;
+
+    // Optimized Query (Only necessary fields)
+    const admin = await User.findOne({
+        email,
+        provider: "email",
+        role: "admin"
+    })
+        .select("+password isVerified refreshTokenVersion")
+        .lean(false);
+
+    if (!admin) {
+        return sendResponse(res, status.UNAUTHORIZED, "Invalid credentials");
+    }
+
+    const isMatch = await admin.comparePassword(password);
+
+    if (!isMatch) {
+        return sendResponse(res, status.UNAUTHORIZED, "Invalid credentials");
+    }
+
+    if (!admin.isVerified) {
+        return sendResponse(res, status.FORBIDDEN, "Admin account not verified");
+    }
+
+    // Update last login (atomic)
+    await User.updateOne(
+        { _id: admin._id },
+        { $set: { lastLoginAt: new Date() } }
+    );
+
+    // Access Token (Short-lived)
+    const accessToken = createToken(
+        "access",
+        {
+            sub: admin._id.toString(),
+            role: admin.role,
+            v: admin.refreshTokenVersion
+        },
+        {
+            secret: env.JWT_ACCESS_TOKEN,
+            expiresIn: "10m",
+            issuer: "nectar-api",
+            audience: "nectar-admin"
+        }
+    );
+
+    // Refresh Token
+    const refreshToken = createToken(
+        "refresh",
+        {
+            sub: admin._id.toString(),
+            v: admin.refreshTokenVersion
+        },
+        {
+            secret: env.JWT_REFRESH_TOKEN,
+            expiresIn: "7d",
+            issuer: "nectar-api",
+            audience: "nectar-admin"
+        }
+    );
+
+    // Secure Cookie (Admin Scope Only)
+    res.cookie("adminRefreshToken", refreshToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+        path: "/auth/admin",
+        maxAge: 1000 * 60 * 60 * 24 * 7
+    });
+
+    return sendResponse(res, status.OK, "Admin login successful", {
+        accessToken
+    });
 });

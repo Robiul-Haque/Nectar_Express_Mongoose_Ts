@@ -5,11 +5,10 @@ import logger from './utils/logger';
 import { verifySMTP } from './utils/sendOtpEmail';
 
 async function bootstrap() {
-
-    // 1️⃣ Start server instantly
+    // Start server instantly
     const server = app.listen(env.PORT, () => logger.info(`🚀 Server running on port ${env.PORT}`));
 
-    // 2️⃣ DB connect (background)
+    // DB connect (background)
     mongoose
         .connect(env.DB_URL)
         .then(() => logger.info('✅ DB connected'))
@@ -18,13 +17,12 @@ async function bootstrap() {
             process.exit(1);
         });
 
-    // Enable query logging for docker
-    mongoose.set("debug", true);
+    // mongoose.set("debug", true);
 
-    // 3️⃣ SMTP verify (background — NON BLOCKING)
+    // SMTP verify (background — NON BLOCKING)
     if (env.NODE_ENV !== 'production') verifySMTP();
 
-    // 4️⃣ Graceful shutdown
+    // Graceful shutdown
     process.on('SIGTERM', async () => {
         logger.warn('SIGTERM received. Shutting down...');
         await mongoose.disconnect();

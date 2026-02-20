@@ -17,7 +17,7 @@ export const emailRegisterSchema = z.object({
 
 export const otpVerifySchema = z.object({
     email: z.email(),
-    otp: z.string().length(4),
+    otp: z.string().length(6, "OTP must be 6 characters long"),
 });
 
 export const emailLoginSchema = z.object({
@@ -43,7 +43,7 @@ export const forgotPasswordSchema = z.object({
 
 export const resetPasswordSchema = z.object({
     email: z.email("Invalid email address"),
-    token: z.string().min(4, "Invalid token"),
+    otp: z.string().min(6, "Invalid OTP").max(6, "Invalid OTP"),
     newPassword: passwordSchema
 });
 
