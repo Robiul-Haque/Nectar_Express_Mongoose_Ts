@@ -3,6 +3,7 @@ import app from './app';
 import { env } from './config/env';
 import logger from './utils/logger';
 import { verifySMTP } from './utils/sendOtpEmail';
+import { seedAdmin } from './seeders/adminSeeder';
 
 async function bootstrap() {
     // Start server instantly
@@ -14,7 +15,8 @@ async function bootstrap() {
         .then(() => logger.info('✅ DB connected'))
         .catch((err) => {
             logger.error('❌ DB connection failed', err);
-            process.exit(1);
+            seedAdmin()
+            .then(() => process.exit(1));
         });
 
     // mongoose.set("debug", true);

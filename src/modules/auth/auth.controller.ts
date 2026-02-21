@@ -470,58 +470,46 @@ export const facebookLogin = catchAsync(async (req: Request, res: Response) => {
     );
 });
 
-
 // Admin controllers
 export const adminLogin = catchAsync(async (req: Request, res: Response) => {
     const parsed = emailLoginSchema.safeParse(req.body);
 
     if (!parsed.success) {
-        return sendResponse(
-            res,
-            status.BAD_REQUEST,
-            "Invalid input",
-            parsed.error.flatten()
-        );
+        return sendResponse(res,status.BAD_REQUEST,"Invalid input",parsed.error.flatten());
     }
 
     const { email, password } = parsed.data;
 
-    // Optimized Query (Only necessary fields)
-    const admin = await User.findOne({
-        email,
-        provider: "email",
-        role: "admin"
-    })
-        .select("+password isVerified refreshTokenVersion")
-        .lean(false);
+    // Check if email exists (any provider email account)
+    const user = await User.findOne({email,provider: "email"}).select("+password role isVerified refreshTokenVersion");
 
-    if (!admin) {
-        return sendResponse(res, status.UNAUTHORIZED, "Invalid credentials");
+    if (!user) {
+        return sendResponse(res,status.UNAUTHORIZED,"Admin email not found");
     }
 
-    const isMatch = await admin.comparePassword(password);
+    if (user.role !== "admin") {
+        return sendResponse(res,status.FORBIDDEN,"This account is not authorized as admin");
+    }
 
+    const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-        return sendResponse(res, status.UNAUTHORIZED, "Invalid credentials");
+        return sendResponse(res,status.UNAUTHORIZED,"Incorrect password");
     }
 
-    if (!admin.isVerified) {
-        return sendResponse(res, status.FORBIDDEN, "Admin account not verified");
+    if (!user.isVerified) {
+        return sendResponse(res,status.FORBIDDEN,"Admin account not verified");
     }
 
-    // Update last login (atomic)
-    await User.updateOne(
-        { _id: admin._id },
-        { $set: { lastLoginAt: new Date() } }
-    );
+    // Update last login
+    await User.updateOne({ _id: user._id },{ $set: { lastLoginAt: new Date() } });
 
-    // Access Token (Short-lived)
+    // Access Token
     const accessToken = createToken(
         "access",
         {
-            sub: admin._id.toString(),
-            role: admin.role,
-            v: admin.refreshTokenVersion
+            sub: user._id.toString(),
+            role: user.role,
+            v: user.refreshTokenVersion
         },
         {
             secret: env.JWT_ACCESS_TOKEN,
@@ -535,8 +523,8 @@ export const adminLogin = catchAsync(async (req: Request, res: Response) => {
     const refreshToken = createToken(
         "refresh",
         {
-            sub: admin._id.toString(),
-            v: admin.refreshTokenVersion
+            sub: user._id.toString(),
+            v: user.refreshTokenVersion
         },
         {
             secret: env.JWT_REFRESH_TOKEN,
@@ -546,7 +534,7 @@ export const adminLogin = catchAsync(async (req: Request, res: Response) => {
         }
     );
 
-    // Secure Cookie (Admin Scope Only)
+    // HTTP-only Cookie
     res.cookie("adminRefreshToken", refreshToken, {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
