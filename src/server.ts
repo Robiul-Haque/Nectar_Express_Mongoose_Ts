@@ -12,11 +12,13 @@ async function bootstrap() {
     // DB connect (background)
     mongoose
         .connect(env.DB_URL)
-        .then(() => logger.info('✅ DB connected'))
+        .then(async () => {
+            logger.info('✅ DB connected');
+            await seedAdmin();
+        })
         .catch((err) => {
             logger.error('❌ DB connection failed', err);
-            seedAdmin()
-            .then(() => process.exit(1));
+            process.exit(1);
         });
 
     // mongoose.set("debug", true);

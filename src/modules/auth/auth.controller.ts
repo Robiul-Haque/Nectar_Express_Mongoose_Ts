@@ -475,33 +475,33 @@ export const adminLogin = catchAsync(async (req: Request, res: Response) => {
     const parsed = emailLoginSchema.safeParse(req.body);
 
     if (!parsed.success) {
-        return sendResponse(res,status.BAD_REQUEST,"Invalid input",parsed.error.flatten());
+        return sendResponse(res, status.BAD_REQUEST, "Invalid input", parsed.error.flatten());
     }
 
     const { email, password } = parsed.data;
 
     // Check if email exists (any provider email account)
-    const user = await User.findOne({email,provider: "email"}).select("+password role isVerified refreshTokenVersion");
+    const user = await User.findOne({ email, provider: "email" }).select("+password role isVerified refreshTokenVersion");
 
     if (!user) {
-        return sendResponse(res,status.UNAUTHORIZED,"Admin email not found");
+        return sendResponse(res, status.UNAUTHORIZED, "Admin email not found");
     }
 
     if (user.role !== "admin") {
-        return sendResponse(res,status.FORBIDDEN,"This account is not authorized as admin");
+        return sendResponse(res, status.FORBIDDEN, "This account is not authorized as admin");
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-        return sendResponse(res,status.UNAUTHORIZED,"Incorrect password");
+        return sendResponse(res, status.UNAUTHORIZED, "Incorrect password");
     }
 
     if (!user.isVerified) {
-        return sendResponse(res,status.FORBIDDEN,"Admin account not verified");
+        return sendResponse(res, status.FORBIDDEN, "Admin account not verified");
     }
 
     // Update last login
-    await User.updateOne({ _id: user._id },{ $set: { lastLoginAt: new Date() } });
+    await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
 
     // Access Token
     const accessToken = createToken(

@@ -7,6 +7,7 @@ export const env = {
     ADMIN_NAME: process.env.ADMIN_NAME as string,
     ADMIN_EMAIL: process.env.ADMIN_EMAIL as string,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD as string,
+    SALT_ROUNDS: Number(process.env.SALT_ROUNDS),
     SMTP_HOST: process.env.SMTP_HOST as string,
     SMTP_PORT: Number(process.env.SMTP_PORT),
     SMTP_USER: process.env.SMTP_USER as string,

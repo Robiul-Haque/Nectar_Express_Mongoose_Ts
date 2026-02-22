@@ -1,6 +1,7 @@
 import { Schema, model, Document } from "mongoose";
 import bcrypt from "bcrypt";
 import { IUser, IUserMethods, UserModel } from "./user.interface";
+import { env } from "../../config/env";
 
 const deviceSchema = new Schema(
     {
@@ -100,7 +101,7 @@ userSchema.index({ "devices.token": 1 });
 userSchema.pre("save", async function (this: Document & IUser) {
     if (!this.isModified("password") || !this.password) return;
 
-    const salt = await bcrypt.genSalt(12);
+    const salt = await bcrypt.genSalt(env.SALT_ROUNDS);
     this.password = await bcrypt.hash(this.password, salt);
 });
 
