@@ -54,3 +54,8 @@ export const googleLoginSchema = z.object({
 export const facebookLoginSchema = z.object({
     accessToken: z.string(),
 });
+
+export const updateProfileSchema = z.object({
+    name: z.string().trim().min(2, "Name must be at least 2 characters").max(30, "Name cannot exceed 30 characters").optional(),
+    avatar: z.string().trim().url("Avatar must be a valid URL").optional()
+});
