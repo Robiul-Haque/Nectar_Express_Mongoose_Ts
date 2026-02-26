@@ -6,7 +6,7 @@ interface UploadOptions {
     publicId?: string;
 }
 
-export const uploadImageStream = (fileBuffer: Buffer,options: UploadOptions): Promise<UploadApiResponse> => {
+export const uploadImageStream = (fileBuffer: Buffer, options: UploadOptions): Promise<UploadApiResponse> => {
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
             {
