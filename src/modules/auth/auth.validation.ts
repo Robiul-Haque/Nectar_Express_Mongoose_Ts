@@ -21,18 +21,16 @@ export const otpVerifySchema = z.object({
 });
 
 export const emailLoginSchema = z.object({
-    body: z
-        .object({
-            email: z.string({ message: "Email is required", }).trim().toLowerCase().email("Invalid email address"),
-            password: z.string({ message: "Password is required" }).min(1, "Password is required"),
-        })
+    body: z.object({
+        email: z.string({ message: "Email is required", }).trim().toLowerCase().email("Invalid email address"),
+        password: z.string({ message: "Password is required" }).min(1, "Password is required"),
+    })
         .strict()
 });
 
-export const refreshTokenSchema = z
-    .object({
-        refreshToken: z.string().min(1, "Refresh token not found").min(20, "Invalid refresh token format"),
-    })
+export const refreshTokenSchema = z.object({
+    refreshToken: z.string().min(1, "Refresh token not found").min(20, "Invalid refresh token format"),
+})
     .strict();
 
 export const forgotPasswordSchema = z.object({
@@ -45,13 +43,12 @@ export const resetPasswordSchema = z.object({
     newPassword: passwordSchema
 });
 
-export const googleLoginSchema = z
-    .object({
-        idToken: z.string().min(1),
-        fcmToken: z.string().optional(),
-        platform: z.enum(["android", "ios", "web"]).optional(),
-        deviceId: z.string().nullable().optional()
-    })
+export const googleLoginSchema = z.object({
+    idToken: z.string().min(1),
+    fcmToken: z.string().optional(),
+    platform: z.enum(["android", "ios", "web"]).optional(),
+    deviceId: z.string().nullable().optional()
+})
     .strict()
     .superRefine((data, ctx) => {
         if (data.fcmToken && !data.platform) {
@@ -63,13 +60,12 @@ export const googleLoginSchema = z
         }
     });
 
-export const facebookLoginSchema = z
-    .object({
-        accessToken: z.string().min(1, "Facebook access token is required").min(10, "Invalid Facebook access token"),
-        fcmToken: z.string().min(1, "FCM token cannot be empty").optional(),
-        platform: z.enum(["android", "ios", "web"], { message: "Platform must be android, ios, or web" }).optional(),
-        deviceId: z.string().nullable().optional()
-    })
+export const facebookLoginSchema = z.object({
+    accessToken: z.string().min(1, "Facebook access token is required").min(10, "Invalid Facebook access token"),
+    fcmToken: z.string().min(1, "FCM token cannot be empty").optional(),
+    platform: z.enum(["android", "ios", "web"], { message: "Platform must be android, ios, or web" }).optional(),
+    deviceId: z.string().nullable().optional()
+})
     .strict()
     .superRefine((data, ctx) => {
         if (data.fcmToken && !data.platform) {

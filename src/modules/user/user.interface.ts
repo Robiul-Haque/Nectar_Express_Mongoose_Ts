@@ -22,6 +22,13 @@ export interface IUser {
         url: string;
         publicId: string;
     };
+    location?: {
+        latitude: Number;
+        longitude: Number;
+        country: String;
+        city: String;
+    };
+    isActive: boolean;
     isVerified: boolean;
     otp?: string;
     otpExpires?: Date;

@@ -69,97 +69,43 @@ export const verifyOTP = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const emailLogin = catchAsync(async (req: Request, res: Response) => {
-    const { email, password, fcmToken, platform, deviceId } = req.body;
+    const { email, password } = req.body;
 
     const user = await User.findOne({ email, provider: "email" }).select("+password");
     if (!user) return sendResponse(res, status.UNAUTHORIZED, "Invalid email or password");
+    if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return sendResponse(res, status.UNAUTHORIZED, "Invalid email or password");
     if (!user.isVerified) return sendResponse(res, status.UNAUTHORIZED, "Account not verified");
 
-    // Device Token Upsert
-    if (fcmToken && platform) {
-        await User.updateOne(
-            {
-                _id: user._id,
-                "devices.token": { $ne: fcmToken }
-            },
-            {
-                $push: {
-                    devices: {
-                        token: fcmToken,
-                        platform,
-                        deviceId: deviceId || null,
-                        lastActive: new Date()
-                    }
-                }
-            }
-        );
-
-        await User.updateOne(
-            {
-                _id: user._id,
-                "devices.token": fcmToken
-            },
-            {
-                $set: {
-                    "devices.$.lastActive": new Date()
-                }
-            }
-        );
-    }
-
     // Update last login
     user.lastLoginAt = new Date();
     await user.save();
 
-    // Generate Tokens
+    // Generate access Tokens
     const accessToken = createToken(
         "access",
-        {
-            sub: user._id.toString(),
-            role: user.role,
-            provider: user.provider,
-            v: user.refreshTokenVersion
-        },
-        {
-            secret: env.JWT_ACCESS_TOKEN,
-            expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"],
-            issuer: "nectar-api",
-            audience: "nectar-users"
-        }
+        { sub: user._id.toString(), role: user.role, provider: user.provider, v: user.refreshTokenVersion },
+        { secret: env.JWT_ACCESS_TOKEN, expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"], issuer: "nectar-api", audience: "nectar-users" }
     );
 
+    // Generate refresh token with version for revocation
     const refreshToken = createToken(
         "refresh",
-        {
-            sub: user._id.toString(),
-            v: user.refreshTokenVersion
-        },
-        {
-            secret: env.JWT_REFRESH_TOKEN,
-            expiresIn: env.REFRESH_TOKEN_EXPIRES_IN as SignOptions["expiresIn"],
-            issuer: "nectar-api",
-            audience: "nectar-users"
-        }
+        { sub: user._id.toString(), v: user.refreshTokenVersion },
+        { secret: env.JWT_REFRESH_TOKEN, expiresIn: env.REFRESH_TOKEN_EXPIRES_IN as SignOptions["expiresIn"], issuer: "nectar-api", audience: "nectar-users" }
     );
 
-    if (env.NODE_ENV === "development") {
-        res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: false, // localhost এ false
-            sameSite: "lax",
-            maxAge: 15 * 60 * 1000 // 15 min
-        });
-    }
+    // Set cookies for development
+    if (env.NODE_ENV === "development") res.cookie("accessToken", accessToken, { httpOnly: true, secure: false, sameSite: "lax", maxAge: 15 * 60 * 1000 });
 
-    // Set Refresh Token in HTTP-Only Cookie
+    // Set HTTP-only cookies for refresh token
     res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
-        secure: env.NODE_ENV === "production", // true in production
+        secure: env.NODE_ENV === "production",
         sameSite: env.NODE_ENV === "production" ? "none" : "lax",
-        maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+        maxAge: 1000 * 60 * 60 * 24 * 7
     });
 
     return sendResponse(res, status.OK, "Login successful", { accessToken });
@@ -181,6 +127,9 @@ export const refreshToken = catchAsync(async (req: Request, res: Response) => {
     // Find user and check refreshTokenVersion
     const user = await User.findById(payload.sub);
     if (!user || payload.v !== user.refreshTokenVersion) return sendResponse(res, status.UNAUTHORIZED, "Refresh token revoked");
+
+    // isActive check
+    if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
 
     // Generate new tokens
     const accessToken = createToken(
@@ -267,6 +216,9 @@ export const forgotPassword = catchAsync(async (req: Request, res: Response) => 
     const user = await User.findOne({ email, provider: "email" });
     if (!user) return sendResponse(res, status.OK, "If the email exists, a reset token has been sent");
 
+    // isActive check
+    if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
+
     // Generate OTP / Reset Token
     const { otp, otpExpires } = otpGenerator(6, 10);
 
@@ -285,6 +237,9 @@ export const resetPassword = catchAsync(async (req: Request, res: Response) => {
 
     const user = await User.findOne({ email, provider: "email" }).select("+password +otp +otpExpires");
     if (!user) return sendResponse(res, status.BAD_REQUEST, "Invalid token or email");
+
+    // isActive check
+    if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
 
     // Validate OTP
     if (!user.otp || !user.otpExpires || user.otp !== otp || user.otpExpires < new Date()) return sendResponse(res, status.BAD_REQUEST, "Invalid or expired token");
@@ -333,8 +288,10 @@ export const googleLogin = catchAsync(async (req: Request, res: Response) => {
                 :
                 []
         });
-
     } else {
+        // isActive check
+        if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
+
         if (user.provider !== "google") {
             user.provider = "google";
             user.isVerified = true;
@@ -344,32 +301,13 @@ export const googleLogin = catchAsync(async (req: Request, res: Response) => {
 
         if (fcmToken && platform) {
             await User.updateOne(
-                {
-                    _id: user._id,
-                    "devices.token": { $ne: fcmToken }
-                },
-                {
-                    $push: {
-                        devices: {
-                            token: fcmToken,
-                            platform,
-                            deviceId: deviceId || null,
-                            lastActive: new Date()
-                        }
-                    }
-                }
+                { _id: user._id, "devices.token": { $ne: fcmToken } },
+                { $push: { devices: { token: fcmToken, platform, deviceId: deviceId || null, lastActive: new Date() } } }
             );
 
             await User.updateOne(
-                {
-                    _id: user._id,
-                    "devices.token": fcmToken
-                },
-                {
-                    $set: {
-                        "devices.$.lastActive": new Date()
-                    }
-                }
+                { _id: user._id, "devices.token": fcmToken },
+                { $set: { "devices.$.lastActive": new Date() } }
             );
         }
     }
@@ -379,64 +317,32 @@ export const googleLogin = catchAsync(async (req: Request, res: Response) => {
 
     const accessToken = createToken(
         "access",
-        {
-            sub: user._id.toString(),
-            role: user.role,
-            provider: user.provider,
-            v: user.refreshTokenVersion
-        },
-        {
-            secret: env.JWT_ACCESS_TOKEN,
-            expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"],
-        }
+        { sub: user._id.toString(), role: user.role, provider: user.provider, v: user.refreshTokenVersion },
+        { secret: env.JWT_ACCESS_TOKEN, expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"] }
     );
 
     const refreshToken = createToken(
         "refresh",
-        {
-            sub: user._id.toString(),
-            v: user.refreshTokenVersion
-        },
-        {
-            secret: env.JWT_REFRESH_TOKEN,
-            expiresIn: env.REFRESH_TOKEN_EXPIRES_IN as SignOptions["expiresIn"],
-        }
+        { sub: user._id.toString(), v: user.refreshTokenVersion },
+        { secret: env.JWT_REFRESH_TOKEN, expiresIn: env.REFRESH_TOKEN_EXPIRES_IN as SignOptions["expiresIn"] }
     );
 
-    return sendResponse(res, status.OK, "Google login successful", {
-        accessToken,
-        refreshToken,
-        user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            avatar: user.avatar,
-            provider: user.provider
-        }
-    });
+    return sendResponse(res, status.OK, "Google login successful", { accessToken, refreshToken, user: { id: user._id, name: user.name, email: user.email, role: user.role, avatar: user.avatar, provider: user.provider } });
 });
 
 export const facebookLogin = catchAsync(async (req: Request, res: Response) => {
     const { idToken, fcmToken } = req.body;
-
     if (!idToken) return sendResponse(res, status.BAD_REQUEST, "Firebase ID token is required");
 
-    // Verify Firebase ID token (revocation check enabled)
     const decodedToken = await firebaseAdmin.auth().verifyIdToken(idToken, true);
-
     const { email, name, picture, firebase } = decodedToken;
 
-    // Strict provider validation
     if (!firebase?.sign_in_provider?.includes("facebook.com")) return sendResponse(res, status.UNAUTHORIZED, "Invalid Facebook authentication");
-
     if (!email) return sendResponse(res, status.UNAUTHORIZED, "Email not available from Facebook account");
 
-    // Find existing user by email
     let user = await User.findOne({ email });
 
     if (!user) {
-        // Create new Facebook user
         user = await User.create({
             name: name || email.split("@")[0],
             email,
@@ -446,58 +352,35 @@ export const facebookLogin = catchAsync(async (req: Request, res: Response) => {
             role: "user",
         });
     } else {
-        // Handle provider switch or linking
-        if (user.provider !== "facebook") {
-            user.provider = "facebook";
-        }
+        // isActive check
+        if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
 
+        if (user.provider !== "facebook") user.provider = "facebook";
         user.isVerified = true;
 
-        // Optional: Keep avatar updated
-        if (picture && user.avatar?.url !== picture) {
-            user.avatar = { url: picture, publicId: "" };
-        }
-
+        if (picture && user.avatar?.url !== picture) user.avatar = { url: picture, publicId: "" };
         await user.save();
     }
 
-    // Add FCM token (idempotent)
-    if (fcmToken) {
-        await User.updateOne({ _id: user._id }, { $addToSet: { fcmTokens: fcmToken } });
-    }
+    if (fcmToken) await User.updateOne({ _id: user._id }, { $addToSet: { fcmTokens: fcmToken } });
 
-    // Issue backend JWT
     const accessToken = createToken(
         "access",
-        {
-            sub: user._id.toString(),
-            role: user.role,
-            provider: user.provider,
-        },
-        {
-            secret: env.JWT_ACCESS_TOKEN,
-            expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"],
-            issuer: "nectar-api",
-            audience: "nectar-users",
-        }
+        { sub: user._id.toString(), role: user.role, provider: user.provider },
+        { secret: env.JWT_ACCESS_TOKEN, expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"], issuer: "nectar-api", audience: "nectar-users" }
     );
 
-    return sendResponse(
-        res,
-        status.OK,
-        "Facebook login successful",
-        {
-            accessToken,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                avatar: user.avatar,
-                provider: user.provider,
-            },
+    return sendResponse(res, status.OK, "Facebook login successful", {
+        accessToken,
+        user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            avatar: user.avatar,
+            provider: user.provider
         }
-    );
+    });
 });
 
 // Admin controllers

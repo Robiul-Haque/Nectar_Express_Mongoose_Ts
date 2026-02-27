@@ -73,6 +73,17 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
                 default: null,
             }
         },
+        location: {
+            latitude: { type: Number, default: 0 },
+            longitude: { type: Number, default: 0 },
+            country: { type: String, default: "" },
+            city: { type: String, default: "" },
+        },
+        isActive: {
+            type: Boolean,
+            default: true,
+            index: true
+        },
         isVerified: {
             type: Boolean,
             default: false,

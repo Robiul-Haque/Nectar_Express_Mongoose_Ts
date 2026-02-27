@@ -5,10 +5,43 @@ import status from "http-status";
 import User from "./user.model";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
 
+export const updateLocation = catchAsync(async (req: Request, res: Response) => {
+    const userId = req.user!.sub;
+    const { location } = req.body;
+
+    const user = await User.findById(userId).select("isActive");
+    if (!user) return sendResponse(res, status.NOT_FOUND, "User not found");
+    if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
+
+    // Update location in DB
+    const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { $set: { location } },
+        { new: true, runValidators: true, projection: { location: 1, name: 1, email: 1 } }
+    ).lean();
+
+    if (!updatedUser) return sendResponse(res, 404, "User not found");
+
+    return sendResponse(res, 200, "Location updated successfully", updatedUser);
+});
+
+export const getLocation = catchAsync(async (req: Request, res: Response) => {
+    const userId = req.user!.sub;
+
+    const user = await User.findById(userId).select("-_id location name email isActive").lean();
+    if (!user) return sendResponse(res, 404, "User not found");
+    if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
+
+    return sendResponse(res, 200, "User location retrieved successfully", user);
+});
+
 export const updateProfile = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user!.sub;
 
     const updateData: any = {};
+
+    const user = await User.findById(userId);
+    if (!user?.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive");
 
     // Text field validation by Zod
     if (req.body.name) updateData.name = req.body.name;
@@ -67,6 +100,7 @@ export const getProfile = catchAsync(async (req: Request, res: Response) => {
 
     const user = await User.findById(userId).select("-_id name email avatar").lean();
     if (!user) return sendResponse(res, status.NOT_FOUND, "User not found");
+    if (!user?.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive");
 
     return sendResponse(res, status.OK, "Profile retrieved successfully", user);
 });
