@@ -18,7 +18,10 @@ export interface IUser {
     provider: AuthProvider;
     devices: IDevice[];
     role: UserRole;
-    avatar?: string;
+    avatar?: {
+        url: string;
+        publicId: string;
+    };
     isVerified: boolean;
     otp?: string;
     otpExpires?: Date;

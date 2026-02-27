@@ -64,8 +64,14 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
             index: true
         },
         avatar: {
-            type: String,
-            default: ""
+            url: {
+                type: String,
+                default: null
+            },
+            publicId: {
+                type: String,
+                default: null,
+            }
         },
         isVerified: {
             type: Boolean,

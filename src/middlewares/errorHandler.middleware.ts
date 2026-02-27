@@ -1,42 +1,65 @@
 import { Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
 import { ZodError } from "zod";
 import status from "http-status";
+
+interface IErrorSource {
+    field?: string;
+    message: string;
+}
 
 interface IErrorResponse {
     success: boolean;
     message: string;
-    errors?: {
-        field?: string;
-        message: string;
-    }[];
+    errors?: IErrorSource[];
     stack?: string;
 }
 
-const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-    let statusCode = err.statusCode || status.INTERNAL_SERVER_ERROR;
-    let message = err.message || "Internal Server Error";
-    let errors: IErrorResponse["errors"] = [];
+const errorHandler = (err: unknown,req: Request,res: Response,next: NextFunction) => {
+    let statusCode: number = status.INTERNAL_SERVER_ERROR;
+    let message = "Something went wrong";
+    let errors: IErrorSource[] | undefined;
 
-    // ZOD VALIDATION ERROR
+    // Zod Validation Error
     if (err instanceof ZodError) {
         statusCode = status.BAD_REQUEST;
         message = "Validation failed";
 
-        errors = err.issues.map((error) => ({ field: error.path.join("."), message: error.message, }));
+        errors = err.issues.map((issue) => ({
+            field: issue.path.join("."),
+            message: issue.message,
+        }));
     }
 
-    //  MONGOOSE VALIDATION ERROR
-    else if (err?.name === "ValidationError") {
+    // Mongoose Validation Error
+    else if (err instanceof mongoose.Error.ValidationError) {
         statusCode = status.BAD_REQUEST;
         message = "Database validation failed";
 
-        errors = Object.values(err.errors).map((error: any) => ({ field: error.path, message: error.message, }));
+        errors = Object.values(err.errors).map((e) => ({
+            field: (e as any).path,
+            message: (e as any).message,
+        }));
     }
 
-    //  DUPLICATE KEY ERROR (MongoDB)
-    else if (err?.code === 11000) {
+    // Mongoose Cast Error (Invalid ObjectId etc.)
+    else if (err instanceof mongoose.Error.CastError) {
+        statusCode = status.BAD_REQUEST;
+        message = `Invalid ${err.path}`;
+
+        errors = [
+            {
+                field: err.path,
+                message: `Invalid value for ${err.path}`,
+            },
+        ];
+    }
+
+    // 🔹 MongoDB Duplicate Key Error
+    else if (typeof err === "object" &&err !== null &&"code" in err &&(err as any).code === 11000) {
         statusCode = status.CONFLICT;
-        const field = Object.keys(err.keyValue)[0];
+
+        const field = Object.keys((err as any).keyValue)[0];
 
         message = `${field} already exists`;
 
@@ -48,26 +71,32 @@ const errorHandler = (err: any, req: Request, res: Response, next: NextFunction)
         ];
     }
 
-    //  JWT ERROR
-    else if (err?.name === "JsonWebTokenError") {
+    // JWT Errors
+    else if (typeof err === "object" &&err !== null &&"name" in err &&(err as any).name === "JsonWebTokenError") {
         statusCode = status.UNAUTHORIZED;
         message = "Invalid token";
     }
 
-    else if (err?.name === "TokenExpiredError") {
+    else if (typeof err === "object" &&err !== null &&"name" in err &&(err as any).name === "TokenExpiredError") {
         statusCode = status.UNAUTHORIZED;
         message = "Token expired";
     }
 
-    //  FINAL RESPONSE
+    // Custom App Error (if you throw manually with statusCode)
+    else if (typeof err === "object" &&err !== null &&"statusCode" in err) {
+        statusCode = (err as any).statusCode;
+        message = (err as any).message || message;
+    }
+
     const response: IErrorResponse = {
         success: false,
         message,
-        ...(errors.length && { errors }),
-        ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
     };
 
-    res.status(statusCode).json(response);
+    if (errors)  response.errors = errors;
+    if (process.env.NODE_ENV === "development" && err instanceof Error) response.stack = err.stack;
+
+    return res.status(statusCode).json(response);
 };
 
 export default errorHandler;
