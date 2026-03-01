@@ -14,8 +14,20 @@ const categorySchema = new Schema<ICategory>(
             trim: true,
             maxlength: [500, "Description cannot exceed 500 characters"],
         },
-        icon: String,
-        image: String,
+        icon: {
+            url: {
+                type: String,
+                default: null
+            },
+            publicId: {
+                type: String,
+                default: null
+            }
+        },
+        level: {
+            type: Number,
+            default: 0
+        },
         parent: {
             type: Schema.Types.ObjectId,
             ref: "Category",
