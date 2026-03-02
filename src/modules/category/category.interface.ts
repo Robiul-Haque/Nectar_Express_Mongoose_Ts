@@ -7,7 +7,6 @@ export interface ICategory {
         publicId: string;
     };
     image?: string;
-    parent?: string | ICategory | null;
     level?: number;
     isActive: boolean;
     isFeatured: boolean;

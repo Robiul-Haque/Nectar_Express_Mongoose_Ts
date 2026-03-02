@@ -7,6 +7,7 @@ import { createBrandSchema, updateBrandSchema } from "./brand.validation";
 
 const router = Router();
 
+// App routes
 router.get("/app/all", getAppBrands);
 
 // Admin routes

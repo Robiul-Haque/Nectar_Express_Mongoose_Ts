@@ -54,12 +54,7 @@ export const getAllBrands = catchAsync(async (req: Request, res: Response) => {
     ]);
 
     return sendResponse(res, 200, "Brands retrieved successfully", {
-        meta: {
-            page: Number(page),
-            limit: Number(limit),
-            total,
-            totalPages: Math.ceil(total / Number(limit)),
-        },
+        meta: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) },
         data: brands
     });
 });

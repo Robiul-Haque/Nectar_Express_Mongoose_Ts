@@ -6,6 +6,7 @@ import { adminLogin, emailLogin, facebookLogin, forgotPassword, googleLogin, log
 
 const router = Router();
 
+// App routes
 router.post("/signup", validateRequest(emailRegisterSchema), signUp);
 router.post("/verify-otp", validateRequest(otpVerifySchema), verifyOTP);
 router.post("/email/login", validateRequest(emailLoginSchema), emailLogin);

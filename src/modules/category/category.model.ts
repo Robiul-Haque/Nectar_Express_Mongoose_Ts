@@ -7,12 +7,12 @@ const categorySchema = new Schema<ICategory>(
             type: String,
             required: [true, "Category name is required"],
             trim: true,
-            maxlength: [100, "Name cannot exceed 100 characters"],
+            maxlength: [100, "Name cannot exceed 100 characters"]
         },
         description: {
             type: String,
             trim: true,
-            maxlength: [500, "Description cannot exceed 500 characters"],
+            maxlength: [500, "Description cannot exceed 500 characters"]
         },
         icon: {
             url: {
@@ -24,31 +24,22 @@ const categorySchema = new Schema<ICategory>(
                 default: null
             }
         },
-        level: {
-            type: Number,
-            default: 0
-        },
-        parent: {
-            type: Schema.Types.ObjectId,
-            ref: "Category",
-            default: null,
-        },
         isActive: {
             type: Boolean,
-            default: true,
+            default: true
         },
         isFeatured: {
             type: Boolean,
-            default: false,
+            default: false
         },
         sortOrder: {
             type: Number,
-            default: 0,
+            default: 0
         },
     },
     {
         timestamps: true,
-        versionKey: false,
+        versionKey: false
     }
 );
 
