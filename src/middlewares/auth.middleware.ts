@@ -28,26 +28,25 @@ declare global {
     }
 }
 
+/**
+ * @param requiredRoles
+ */
+
 export const authenticate = (requiredRoles?: Role[]) =>
     catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+        // Extract Token (Bearer Header > Cookie fallback)
+        const authHeader = req.headers.authorization;
+        const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : authHeader?.trim() || req.cookies?.accessToken;
 
-        let token: string | undefined;
-
-        if (req.headers.authorization) {
-            const authHeader = req.headers.authorization;
-            token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : authHeader.trim();
-        }
-
-        // Fallback: Cookie (development/browser support)
-        if (!token && req.cookies?.accessToken) token = req.cookies.accessToken;
         if (!token) return sendResponse(res, status.UNAUTHORIZED, "Access token missing");
 
-        let decoded: JwtPayload;
+        // Determine expected audience dynamically
+        const expectedAudience = requiredRoles?.includes("admin") ? "nectar-admin" : "nectar-users";
 
+        let decoded: JwtPayload;
         try {
-            decoded = jwt.verify(token, env.JWT_ACCESS_TOKEN, { issuer: "nectar-api", audience: "nectar-users" }) as JwtPayload;
+            decoded = jwt.verify(token, env.JWT_ACCESS_TOKEN, { issuer: "nectar-api", audience: expectedAudience }) as JwtPayload;
         } catch (error) {
-            // Enhanced logging for debugging
             if (error instanceof TokenExpiredError) {
                 console.warn("[Auth] Token expired at:", error.expiredAt);
             } else if (error instanceof JsonWebTokenError) {
@@ -56,28 +55,24 @@ export const authenticate = (requiredRoles?: Role[]) =>
             return sendResponse(res, status.UNAUTHORIZED, "Invalid or expired token");
         }
 
-        const user = await User.findById(decoded.sub)
-            .select("role refreshTokenVersion isVerified")
-            .lean<{ role: Role; refreshTokenVersion: number; isVerified: boolean }>();
-
+        // Fetch user from DB
+        const user = await User.findById(decoded.sub).select("role refreshTokenVersion isVerified").lean<{ role: Role; refreshTokenVersion: number; isVerified: boolean }>();
         if (!user) return sendResponse(res, status.UNAUTHORIZED, "User not found");
 
-        // Token version check (logout from all devices)
+        // Token version check
         if (user.refreshTokenVersion !== decoded.v) return sendResponse(res, status.UNAUTHORIZED, "Token has been invalidated. Please login again");
 
-        // Email verification check (skip for admin)
+        // Role mismatch protection
+        if (decoded.role !== user.role) return sendResponse(res, status.UNAUTHORIZED, "Token role mismatch");
+
+        // Email verification (skip admin)
         if (!user.isVerified && user.role !== "admin") return sendResponse(res, status.FORBIDDEN, "Please verify your email to continue");
 
         // Role-based access control
-        if (requiredRoles && requiredRoles.length > 0) {
-            if (!requiredRoles.includes(user.role)) return sendResponse(res, status.FORBIDDEN, `Access denied. Required role: ${requiredRoles.join(" or ")}`);
-        }
+        if (requiredRoles?.length && !requiredRoles.includes(user.role)) return sendResponse(res, status.FORBIDDEN, `Access denied. Required role: ${requiredRoles.join(" or ")}`);
 
-        req.user = {
-            sub: decoded.sub,
-            role: user.role,
-            v: decoded.v,
-        };
+        // Attach user to request
+        req.user = { sub: decoded.sub, role: user.role, v: decoded.v };
 
         next();
     });

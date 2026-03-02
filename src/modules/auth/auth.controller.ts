@@ -443,7 +443,7 @@ export const adminLogin = catchAsync(async (req: Request, res: Response) => {
     }
 
     // HTTP-only Cookie
-    res.cookie("adminRefreshToken", refreshToken, {
+    res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
         sameSite: env.NODE_ENV === "production" ? "none" : "lax",

@@ -1,10 +1,17 @@
 import { z } from "zod";
 
 export const createBrandSchema = z.object({
-    name: z.string().trim().min(1, "Brand name is required").max(100, "Name cannot exceed 100 characters"),
+    body: z.object({
+        name: z.string().trim().min(1, "Brand name is required").max(100, "Name cannot exceed 100 characters")
+    })
 });
 
 export const updateBrandSchema = z.object({
-    name: z.string().trim().min(1).max(100).optional(),
-    isActive: z.boolean().optional()
+    body: z.object({
+        name: z.string().trim().min(1, "Brand name is required").max(100, "Name cannot exceed 100 characters").optional(),
+        isActive: z.string().optional().transform((val) => {
+            if (val === undefined) return undefined;
+            return val.toLowerCase() === "true";
+        })
+    })
 });

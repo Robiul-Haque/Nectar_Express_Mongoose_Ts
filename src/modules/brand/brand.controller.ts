@@ -53,7 +53,7 @@ export const getAllBrands = catchAsync(async (req: Request, res: Response) => {
         Brand.countDocuments(filter),
     ]);
 
-    return sendResponse(res, status.OK, "Brands retrieved successfully", {
+    return sendResponse(res, 200, "Brands retrieved successfully", {
         meta: {
             page: Number(page),
             limit: Number(limit),
@@ -79,21 +79,31 @@ export const updateBrand = catchAsync(async (req: Request, res: Response) => {
     const brand = await Brand.findById(id);
     if (!brand) return sendResponse(res, status.NOT_FOUND, "Brand not found");
 
-    const updateData: any = {};
+    const { name, isActive: isActiveStr } = req.body;
 
-    if (req.body.name) updateData.name = req.body.name;
-    if (req.body.isActive !== undefined) updateData.isActive = req.body.isActive;
+    const updateData: Record<string, any> = {};
 
-    // Handle Logo Update
+    if (name) updateData.name = name;
+
+    if (isActiveStr !== undefined) {
+        if (typeof isActiveStr === "string") {
+            updateData.isActive = isActiveStr.toLowerCase() === "true";
+        } else {
+            updateData.isActive = Boolean(isActiveStr);
+        }
+    }
+
     if (req.file) {
-        const uploadResult = await uploadImageStream(req.file.buffer, { folder: "Nectar/Brands", publicId: `brand-${id}-${Date.now()}` });
+        const uploadResult = await uploadImageStream(req.file.buffer, {
+            folder: "Nectar/Brands",
+            publicId: `brand-${id}-${Date.now()}`,
+        });
 
         updateData.logo = {
             url: uploadResult.secure_url,
             publicId: uploadResult.public_id,
         };
 
-        // Delete old logo
         if (brand.logo?.publicId) {
             try {
                 await deleteImage(brand.logo.publicId.toString());
@@ -113,12 +123,17 @@ export const updateBrand = catchAsync(async (req: Request, res: Response) => {
 export const deleteBrand = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    const brand = await Brand.findById(id);
+    const brand = await Brand.findById(id).lean();
     if (!brand) return sendResponse(res, status.NOT_FOUND, "Brand not found");
 
-    // Soft delete
-    brand.isActive = false;
-    await brand.save();
+    if (brand.logo?.publicId) {
+        try {
+            await deleteImage(brand.logo.publicId.toString());
+        } catch (err) {
+            console.error("[Cloudinary Delete Error]", err);
+        }
+    }
 
-    return sendResponse(res, status.OK, "Brand deactivated successfully");
+    await Brand.deleteOne({ _id: id });
+    return sendResponse(res, status.OK, "Brand deleted permanently");
 });

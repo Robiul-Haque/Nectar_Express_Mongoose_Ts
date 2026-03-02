@@ -1,4 +1,3 @@
-
 import { Router } from "express";
 import { authenticate } from "../../middlewares/auth.middleware";
 import { upload } from "../../middlewares/upload.middleware";
@@ -8,7 +7,7 @@ import { createBrandSchema, updateBrandSchema } from "./brand.validation";
 
 const router = Router();
 
-router.get("/app/all",  getAppBrands);
+router.get("/app/all", getAppBrands);
 
 // Admin routes
 router.post("/create", authenticate(["admin"]), upload.single("logo"), validateRequest(createBrandSchema), createBrand);
