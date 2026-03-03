@@ -6,7 +6,7 @@ export const createCategorySchema = z.object({
         description: z.string().max(500).optional(),
         isFeatured: z.coerce.boolean().optional(),
         sortOrder: z.coerce.number().optional(),
-    }),
+    })
 });
 
 export const updateCategorySchema = z.object({
@@ -16,5 +16,5 @@ export const updateCategorySchema = z.object({
         isActive: z.coerce.boolean().optional(),
         isFeatured: z.coerce.boolean().optional(),
         sortOrder: z.coerce.number().optional(),
-    }),
+    })
 });

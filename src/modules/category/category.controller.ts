@@ -4,9 +4,10 @@ import { Category } from "./category.model";
 import httpStatus from "http-status";
 import sendResponse from "../../utils/sendResponse";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
+import mongoose from "mongoose";
 
 export const createCategory = catchAsync(async (req: Request, res: Response) => {
-    const { name, description, featured: isFeatured, sortOrder } = req.body;
+    const { name, description, featured: isFeatured, order: sortOrder } = req.body;
 
     const exists = await Category.exists({ name: { $regex: `^${name}$`, $options: "i" }, });
     if (exists) return sendResponse(res, httpStatus.CONFLICT, "Category already exists");
@@ -31,7 +32,7 @@ export const createCategory = catchAsync(async (req: Request, res: Response) => 
 });
 
 export const getAllCategories = catchAsync(async (req: Request, res: Response) => {
-    const { search, page = 1, limit = 10, isActive } = req.query;
+    const { search, page = 1, limit = 10, active: isActive } = req.query;
 
     const filter: any = {};
 
@@ -43,7 +44,7 @@ export const getAllCategories = catchAsync(async (req: Request, res: Response) =
 
     const [data, total] = await Promise.all([
         Category.find(filter).sort({ sortOrder: 1, createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
-        Category.countDocuments(filter),
+        Category.countDocuments(filter)
     ]);
 
     return sendResponse(res, httpStatus.OK, "Categories fetched", {
@@ -52,12 +53,12 @@ export const getAllCategories = catchAsync(async (req: Request, res: Response) =
     });
 });
 
-export const getSingleCategory = catchAsync(async (req: Request, res: Response) => {
-    const category = await Category.findById(req.params.id).lean();
-    if (!category) return sendResponse(res, httpStatus.NOT_FOUND, "Category not found");
+// export const getSingleCategory = catchAsync(async (req: Request, res: Response) => {
+//     const category = await Category.findById(req.params.id).lean();
+//     if (!category) return sendResponse(res, httpStatus.NOT_FOUND, "Category not found");
 
-    return sendResponse(res, httpStatus.OK, "Category fetched", category);
-});
+//     return sendResponse(res, httpStatus.OK, "Category fetched", category);
+// });
 
 export const updateCategory = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
@@ -87,6 +88,9 @@ export const updateCategory = catchAsync(async (req: Request, res: Response) => 
 });
 
 export const deleteCategory = catchAsync(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid category id");
+
     const deleted = await Category.findByIdAndDelete(req.params.id);
     if (!deleted) return sendResponse(res, httpStatus.NOT_FOUND, "Category not found");
 
