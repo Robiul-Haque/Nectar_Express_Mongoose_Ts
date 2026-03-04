@@ -35,7 +35,7 @@ const categorySchema = new Schema<ICategory>(
         sortOrder: {
             type: Number,
             default: 0
-        },
+        }
     },
     {
         timestamps: true,

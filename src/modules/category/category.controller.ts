@@ -62,6 +62,7 @@ export const getAllCategories = catchAsync(async (req: Request, res: Response) =
 
 export const updateCategory = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid category id");
 
     const category = await Category.findById(id);
     if (!category) return sendResponse(res, httpStatus.NOT_FOUND, "Category not found");
