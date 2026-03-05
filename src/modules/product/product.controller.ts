@@ -36,15 +36,5 @@ export const createProduct = catchAsync(async (req: Request, res: Response) => {
 
     const product = await Product.create(payload);
 
-    return sendResponse(
-        res,
-        httpStatus.CREATED,
-        "Product created successfully",
-        {
-            id: product._id,
-            name: product.name,
-            slug: product.slug,
-            price: product.price,
-        }
-    );
+    return sendResponse(res, httpStatus.CREATED, "Product created successfully", null, product);
 });

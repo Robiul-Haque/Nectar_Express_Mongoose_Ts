@@ -41,7 +41,7 @@ export const signUp = catchAsync(async (req: Request, res: Response) => {
     // Send OTP email asynchronously (non-blocking)
     sendOTPEmail({ to: email, toName: name, otp }).catch((err: Error) => logger.error(`[OTP Email Async Error] ${err.message}`));
 
-    return sendResponse(res, status.CREATED, "User registered successfully. OTP sent to email", {
+    return sendResponse(res, status.CREATED, "User registered successfully. OTP sent to email", null, {
         userId: user._id,
         name: name,
         email: email,
@@ -65,7 +65,7 @@ export const verifyOTP = catchAsync(async (req: Request, res: Response) => {
     user.otpExpires = undefined;
     await user.save();
 
-    return sendResponse(res, status.OK, "Email verified successfully");
+    return sendResponse(res, status.OK, "Email verified successfully", null);
 });
 
 export const emailLogin = catchAsync(async (req: Request, res: Response) => {
@@ -108,7 +108,7 @@ export const emailLogin = catchAsync(async (req: Request, res: Response) => {
         maxAge: 1000 * 60 * 60 * 24 * 7
     });
 
-    return sendResponse(res, status.OK, "Login successful", { accessToken });
+    return sendResponse(res, status.OK, "Login successful", null, { accessToken });
 });
 
 export const refreshToken = catchAsync(async (req: Request, res: Response) => {
@@ -177,7 +177,7 @@ export const refreshToken = catchAsync(async (req: Request, res: Response) => {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    return sendResponse(res, status.OK, "Tokens refreshed successfully", { accessToken });
+    return sendResponse(res, status.OK, "Tokens refreshed successfully", null, { accessToken });
 });
 
 export const logout = catchAsync(async (req: Request, res: Response) => {
@@ -203,10 +203,7 @@ export const logout = catchAsync(async (req: Request, res: Response) => {
         sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
     });
 
-    return res.status(status.OK).json({
-        success: true,
-        message: "Logged out successfully"
-    });
+    return sendResponse(res, status.OK, "Logged out successfully");
 });
 
 export const forgotPassword = catchAsync(async (req: Request, res: Response) => {

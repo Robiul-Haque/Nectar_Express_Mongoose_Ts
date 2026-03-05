@@ -8,7 +8,7 @@ import status from "http-status";
 export const getAppBrands = catchAsync(async (_req: Request, res: Response) => {
     const brands = await Brand.find({ isActive: true }).select("name -_id").sort({ name: 1 }).lean();
 
-    return sendResponse(res, status.OK, "Brands fetched successfully", brands);
+    return sendResponse(res, status.OK, "Brands fetched successfully", null, brands);
 });
 
 export const createBrand = catchAsync(async (req: Request, res: Response) => {
@@ -34,7 +34,7 @@ export const createBrand = catchAsync(async (req: Request, res: Response) => {
 
     const brand = await Brand.create(brandData);
 
-    return sendResponse(res, status.CREATED, "Brand created successfully", brand);
+    return sendResponse(res, status.CREATED, "Brand created successfully", null, brand);
 });
 
 export const getAllBrands = catchAsync(async (req: Request, res: Response) => {
@@ -53,10 +53,7 @@ export const getAllBrands = catchAsync(async (req: Request, res: Response) => {
         Brand.countDocuments(filter),
     ]);
 
-    return sendResponse(res, 200, "Brands retrieved successfully", {
-        meta: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) },
-        data: brands
-    });
+    return sendResponse(res, 200, "Brands retrieved successfully", { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) }, brands);
 });
 
 export const getSingleBrand = catchAsync(async (req: Request, res: Response) => {
@@ -65,7 +62,7 @@ export const getSingleBrand = catchAsync(async (req: Request, res: Response) => 
     const brand = await Brand.findById(id).select("name logo isActive createdAt updatedAt").lean();
     if (!brand) return sendResponse(res, status.NOT_FOUND, "Brand not found");
 
-    return sendResponse(res, status.OK, "Brand retrieved successfully", brand);
+    return sendResponse(res, status.OK, "Brand retrieved successfully", null, brand);
 });
 
 export const updateBrand = catchAsync(async (req: Request, res: Response) => {
@@ -112,7 +109,7 @@ export const updateBrand = catchAsync(async (req: Request, res: Response) => {
 
     const updatedBrand = await Brand.findByIdAndUpdate(id, { $set: updateData }, { new: true, runValidators: true }).lean();
 
-    return sendResponse(res, status.OK, "Brand updated successfully", updatedBrand);
+    return sendResponse(res, status.OK, "Brand updated successfully", null, updatedBrand);
 });
 
 export const deleteBrand = catchAsync(async (req: Request, res: Response) => {
@@ -130,5 +127,5 @@ export const deleteBrand = catchAsync(async (req: Request, res: Response) => {
     }
 
     await Brand.deleteOne({ _id: id });
-    return sendResponse(res, status.OK, "Brand deleted permanently");
+    return sendResponse(res, status.OK, "Brand deleted permanently", null);
 });

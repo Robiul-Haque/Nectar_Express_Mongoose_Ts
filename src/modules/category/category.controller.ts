@@ -28,7 +28,7 @@ export const createCategory = catchAsync(async (req: Request, res: Response) => 
 
     const category = await Category.create(payload);
 
-    return sendResponse(res, httpStatus.CREATED, "Category created successfully", category);
+    return sendResponse(res, httpStatus.CREATED, "Category created successfully", null, category);
 });
 
 export const getAllCategories = catchAsync(async (req: Request, res: Response) => {
@@ -47,10 +47,7 @@ export const getAllCategories = catchAsync(async (req: Request, res: Response) =
         Category.countDocuments(filter)
     ]);
 
-    return sendResponse(res, httpStatus.OK, "Categories fetched", {
-        meta: { total, page: Number(page), limit: Number(limit) },
-        data
-    });
+    return sendResponse(res, httpStatus.OK, "Categories fetched", { total, page: Number(page), limit: Number(limit) }, data);
 });
 
 // export const getSingleCategory = catchAsync(async (req: Request, res: Response) => {
@@ -85,7 +82,7 @@ export const updateCategory = catchAsync(async (req: Request, res: Response) => 
 
     const updated = await Category.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).lean();
 
-    return sendResponse(res, httpStatus.OK, "Category updated successfully", updated);
+    return sendResponse(res, httpStatus.OK, "Category updated successfully", null, updated);
 });
 
 export const deleteCategory = catchAsync(async (req: Request, res: Response) => {
@@ -97,5 +94,5 @@ export const deleteCategory = catchAsync(async (req: Request, res: Response) => 
 
     if (deleted.icon?.publicId) await deleteImage(deleted.icon.publicId);
 
-    return sendResponse(res, httpStatus.OK, "Category deleted successfully");
+    return sendResponse(res, httpStatus.OK, "Category deleted successfully", null);
 });
