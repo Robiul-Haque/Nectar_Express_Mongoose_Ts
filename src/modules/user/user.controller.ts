@@ -22,7 +22,7 @@ export const updateLocation = catchAsync(async (req: Request, res: Response) => 
 
     if (!updatedUser) return sendResponse(res, 404, "User not found");
 
-    return sendResponse(res, 200, "Location updated successfully", updatedUser);
+    return sendResponse(res, 200, "Location updated successfully", null, updatedUser);
 });
 
 export const getLocation = catchAsync(async (req: Request, res: Response) => {
@@ -32,7 +32,7 @@ export const getLocation = catchAsync(async (req: Request, res: Response) => {
     if (!user) return sendResponse(res, 404, "User not found");
     if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
 
-    return sendResponse(res, 200, "User location retrieved successfully", user);
+    return sendResponse(res, 200, "User location retrieved successfully", null, user);
 });
 
 export const updateProfile = catchAsync(async (req: Request, res: Response) => {
@@ -90,7 +90,7 @@ export const updateProfile = catchAsync(async (req: Request, res: Response) => {
         }
     ).lean();
 
-    return sendResponse(res, status.OK, "Profile updated successfully", updatedUser);
+    return sendResponse(res, status.OK, "Profile updated successfully", null, updatedUser);
 });
 
 export const getProfile = catchAsync(async (req: Request, res: Response) => {
@@ -102,5 +102,5 @@ export const getProfile = catchAsync(async (req: Request, res: Response) => {
     if (!user) return sendResponse(res, status.NOT_FOUND, "User not found");
     if (!user?.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive");
 
-    return sendResponse(res, status.OK, "Profile retrieved successfully", user);
+    return sendResponse(res, status.OK, "Profile retrieved successfully", null, user);
 });
