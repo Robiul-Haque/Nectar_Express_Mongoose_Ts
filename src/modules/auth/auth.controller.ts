@@ -65,7 +65,7 @@ export const verifyOTP = catchAsync(async (req: Request, res: Response) => {
     user.otpExpires = undefined;
     await user.save();
 
-    return sendResponse(res, status.OK, "Email verified successfully", null);
+    return sendResponse(res, status.OK, "Email verified successfully");
 });
 
 export const emailLogin = catchAsync(async (req: Request, res: Response) => {
@@ -324,7 +324,7 @@ export const googleLogin = catchAsync(async (req: Request, res: Response) => {
         { secret: env.JWT_REFRESH_TOKEN, expiresIn: env.REFRESH_TOKEN_EXPIRES_IN as SignOptions["expiresIn"] }
     );
 
-    return sendResponse(res, status.OK, "Google login successful", { accessToken, refreshToken, user: { id: user._id, name: user.name, email: user.email, role: user.role, avatar: user.avatar, provider: user.provider } });
+    return sendResponse(res, status.OK, "Google login successful", null, { accessToken, refreshToken, user: { id: user._id, name: user.name, email: user.email, role: user.role, avatar: user.avatar, provider: user.provider } });
 });
 
 export const facebookLogin = catchAsync(async (req: Request, res: Response) => {
@@ -367,7 +367,7 @@ export const facebookLogin = catchAsync(async (req: Request, res: Response) => {
         { secret: env.JWT_ACCESS_TOKEN, expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"], issuer: "nectar-api", audience: "nectar-users" }
     );
 
-    return sendResponse(res, status.OK, "Facebook login successful", {
+    return sendResponse(res, status.OK, "Facebook login successful", null, {
         accessToken,
         user: {
             id: user._id,
@@ -448,5 +448,5 @@ export const adminLogin = catchAsync(async (req: Request, res: Response) => {
         maxAge: 1000 * 60 * 60 * 24 * 7
     });
 
-    return sendResponse(res, status.OK, "Admin login successful", { accessToken });
+    return sendResponse(res, status.OK, "Admin login successful", null, { accessToken });
 });

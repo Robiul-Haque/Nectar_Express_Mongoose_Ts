@@ -47,7 +47,13 @@ export const getAllCategories = catchAsync(async (req: Request, res: Response) =
         Category.countDocuments(filter)
     ]);
 
-    return sendResponse(res, httpStatus.OK, "Categories fetched", { total, page: Number(page), limit: Number(limit) }, data);
+    const pagination = {
+        total,
+        page: Number(page),
+        limit: Number(limit)
+    }
+
+    return sendResponse(res, httpStatus.OK, "Categories fetched", pagination, data);
 });
 
 // export const getSingleCategory = catchAsync(async (req: Request, res: Response) => {
