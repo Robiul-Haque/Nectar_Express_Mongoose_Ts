@@ -18,8 +18,9 @@ export interface IProduct {
     description?: string;
     measurement: IMeasurement;
     price: number;
+    discountPrice?: number;
     stock: number;
-    images: IProductImage[];
+    images: IProductImage;
     category: Types.ObjectId;
     brand: Types.ObjectId;
     nutrition?: string;

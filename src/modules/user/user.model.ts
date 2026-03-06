@@ -70,14 +70,14 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
             },
             publicId: {
                 type: String,
-                default: null,
+                default: null
             }
         },
         location: {
             latitude: { type: Number, default: 0 },
             longitude: { type: Number, default: 0 },
             country: { type: String, default: "" },
-            city: { type: String, default: "" },
+            city: { type: String, default: "" }
         },
         isActive: {
             type: Boolean,

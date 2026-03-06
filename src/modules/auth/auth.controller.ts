@@ -409,7 +409,7 @@ export const adminLogin = catchAsync(async (req: Request, res: Response) => {
         },
         {
             secret: env.JWT_ACCESS_TOKEN,
-            expiresIn: "10m",
+            expiresIn: (env.ACCESS_TOKEN_EXPIRES_IN || "10m") as SignOptions["expiresIn"],
             issuer: "nectar-api",
             audience: "nectar-admin"
         }
@@ -424,7 +424,7 @@ export const adminLogin = catchAsync(async (req: Request, res: Response) => {
         },
         {
             secret: env.JWT_REFRESH_TOKEN,
-            expiresIn: "7d",
+            expiresIn: (env.REFRESH_TOKEN_EXPIRES_IN || "7d") as SignOptions["expiresIn"],
             issuer: "nectar-api",
             audience: "nectar-admin"
         }

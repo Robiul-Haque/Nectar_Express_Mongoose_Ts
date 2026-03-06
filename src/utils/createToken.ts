@@ -18,13 +18,8 @@ export interface TokenConfig {
 }
 
 export const createToken = (type: TokenType, payload: JwtPayload, config: TokenConfig): string => {
-    if (!config.secret) {
-        throw new Error("JWT secret is not defined");
-    }
-
-    if (!payload.sub) {
-        throw new Error("JWT payload must contain 'sub'");
-    }
+    if (!config.secret) throw new Error("JWT secret is not defined");
+    if (!payload.sub) throw new Error("JWT payload must contain 'sub'");
 
     const finalPayload: JwtPayload = type === "refresh" ? { sub: payload.sub, v: payload.v } : { ...payload };
 

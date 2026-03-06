@@ -38,24 +38,33 @@ const productSchema = new Schema<IProduct>(
             required: true,
             min: 0
         },
+        discountPrice: {
+            type: Number,
+            min: 0,
+            validate: {
+                validator: function (this: any, value: number) {
+                    if (!value) return true;
+                    return value < this.price;
+                },
+                message: "Discount price must be less than original price"
+            }
+        },
         stock: {
             type: Number,
             required: true,
             min: 0,
             default: 0
         },
-        images: [
-            {
-                url: {
-                    type: String,
-                    required: true
-                },
-                publicId: {
-                    type: String,
-                    required: true
-                }
+        images: {
+            url: {
+                type: String,
+                required: true
+            },
+            publicId: {
+                type: String,
+                required: true
             }
-        ],
+        },
         category: {
             type: Types.ObjectId,
             ref: "Category",

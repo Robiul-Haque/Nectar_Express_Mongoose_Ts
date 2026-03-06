@@ -53,14 +53,14 @@ export const getAllCategories = catchAsync(async (req: Request, res: Response) =
         limit: Number(limit)
     }
 
-    return sendResponse(res, httpStatus.OK, "Categories fetched", pagination, data);
+    return sendResponse(res, httpStatus.OK, "Categories retrieved successfully", pagination, data);
 });
 
 // export const getSingleCategory = catchAsync(async (req: Request, res: Response) => {
 //     const category = await Category.findById(req.params.id).lean();
 //     if (!category) return sendResponse(res, httpStatus.NOT_FOUND, "Category not found");
 
-//     return sendResponse(res, httpStatus.OK, "Category fetched", category);
+//     return sendResponse(res, httpStatus.OK, "Category retrieved successfully", category);
 // });
 
 export const updateCategory = catchAsync(async (req: Request, res: Response) => {
