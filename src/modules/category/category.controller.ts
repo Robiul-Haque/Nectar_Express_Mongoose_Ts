@@ -65,12 +65,11 @@ export const getAllCategories = catchAsync(async (req: Request, res: Response) =
 
 export const updateCategory = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid category id");
 
     const category = await Category.findById(id);
     if (!category) return sendResponse(res, httpStatus.NOT_FOUND, "Category not found");
 
-    const updateData: any = { ...req.body };
+    const payload: any = { ...req.body };
 
     if (req.file) {
         if (category.icon?.publicId) await deleteImage(category.icon.publicId);
@@ -80,15 +79,17 @@ export const updateCategory = catchAsync(async (req: Request, res: Response) => 
             publicId: `category-${Date.now()}`
         });
 
-        updateData.icon = {
+        payload.icon = {
             url: uploadResult.secure_url,
             publicId: uploadResult.public_id
         };
     }
 
-    const updated = await Category.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).lean();
+    const updatedCategory = await Category.findByIdAndUpdate(id,payload,{new: true,runValidators: true}).lean();
+    if (!updatedCategory) return sendResponse(res, httpStatus.NOT_FOUND, "Category not found");
 
-    return sendResponse(res, httpStatus.OK, "Category updated successfully", null, updated);
+    return sendResponse(res,httpStatus.OK,"Category updated successfully",null,updatedCategory);
+
 });
 
 export const deleteCategory = catchAsync(async (req: Request, res: Response) => {

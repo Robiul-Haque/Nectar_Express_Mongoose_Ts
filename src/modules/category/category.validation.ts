@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { z } from "zod";
 
 export const createCategorySchema = z.object({
@@ -10,6 +11,9 @@ export const createCategorySchema = z.object({
 });
 
 export const updateCategorySchema = z.object({
+    params: z.object({
+        id: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), { message: "Invalid ObjectId" })
+    }),
     body: z.object({
         name: z.string().min(2).max(100).optional(),
         description: z.string().max(500).optional(),

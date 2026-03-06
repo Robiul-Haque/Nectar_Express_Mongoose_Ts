@@ -4,7 +4,8 @@ import slugify from "slugify";
 import httpStatus from "http-status";
 import { Product } from "./product.model";
 import sendResponse from "../../utils/sendResponse";
-import { uploadImageStream } from "../../utils/cloudinary";
+import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
+import mongoose from "mongoose";
 
 export const createProduct = catchAsync(async (req: Request, res: Response) => {
     const payload: any = req.body;
@@ -55,32 +56,43 @@ export const getAllProducts = catchAsync(async (_req, res) => {
 // });
 
 export const updateProduct = catchAsync(async (req, res) => {
-    const payload: any = req.body;
+    const { id } = req.params;
 
-    if (payload.name) {
-        payload.slug = slugify(payload.name, { lower: true, strict: true });
+    const product = await Product.findById(id);
+    if (!product) return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
+
+    const payload: any = { ...req.body };
+
+    // slug update
+    if (payload.name) payload.slug = slugify(payload.name, { lower: true, strict: true });
+
+    if (req.file) {
+        // delete old image
+        if (product.images?.publicId) await deleteImage(product.images.publicId);
+
+        // upload new image
+        const uploadResult = await uploadImageStream(req.file.buffer, {
+            folder: "Nectar/Products",
+            publicId: `product-${Date.now()}`
+        });
+
+        payload.images = {
+            url: uploadResult.secure_url,
+            publicId: uploadResult.public_id
+        };
     }
 
-    const updated = await Product.findByIdAndUpdate(
-        req.params.id,
-        payload,
-        {
-            new: true,
-            runValidators: true,
-        }
-    ).lean();
+    const updatedProduct = await Product.findByIdAndUpdate(id, payload, { new: true, runValidators: true }).lean();
 
-    if (!updated) return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
-
-    return sendResponse(res, httpStatus.OK, "Product updated", null, updated);
+    return sendResponse(res, httpStatus.OK, "Product updated successfully", null, updatedProduct);
 });
 
 export const deleteProduct = catchAsync(async (req, res) => {
-    const deleted = await Product.findByIdAndDelete(req.params.id).lean();
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid product id");
 
-    if (!deleted) {
-        return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
-    }
+    const deleted = await Product.findByIdAndDelete(id).lean();
+    if (!deleted) return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
 
     return sendResponse(res, httpStatus.OK, "Product deleted successfully");
 });
