@@ -30,7 +30,8 @@ const reviewSchema = new Schema<IReview>(
         }
     },
     {
-        timestamps: true
+        timestamps: true,
+        versionKey: false
     }
 );
 
