@@ -16,13 +16,9 @@ export const createReview = catchAsync(async (req: Request, res: Response) => {
     if (!productExists) return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
 
     const alreadyReviewed = await Review.findOne({ product: payload.product, user: userId }).lean();
-
     if (alreadyReviewed) return sendResponse(res, httpStatus.CONFLICT, "You already reviewed this product");
 
-    const review = await Review.create({
-        ...payload,
-        user: userId
-    });
+    const review = await Review.create({ ...payload, user: userId });
 
     return sendResponse(res, httpStatus.CREATED, "Review created successfully", null, review);
 });
@@ -32,29 +28,14 @@ export const getProductReviews = catchAsync(async (req: Request, res: Response) 
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
 
-    if (!mongoose.Types.ObjectId.isValid(product as string)) {
-        return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid product id");
-    }
+    if (!mongoose.Types.ObjectId.isValid(product as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid product id");
 
     const skip = (page - 1) * limit;
 
-    const reviews = await Review.find({ product })
-        .populate("user", "name avatar")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean();
-
+    const reviews = await Review.find({ product }).populate("user", "name avatar").sort({ createdAt: -1 }).skip(skip).limit(limit).lean();
     const total = await Review.countDocuments({ product });
 
-    return sendResponse(res, httpStatus.OK, "Reviews retrieved successfully", null, {
-        meta: {
-            page,
-            limit,
-            total
-        },
-        data: reviews
-    });
+    return sendResponse(res, httpStatus.OK, "Reviews retrieved successfully", null, {meta: {page,limit,total},data: reviews});
 });
 
 export const getSingleReview = catchAsync(async (req: Request, res: Response) => {
