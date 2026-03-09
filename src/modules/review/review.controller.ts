@@ -7,18 +7,33 @@ import catchAsync from "../../utils/catchAsync";
 import sendResponse from "../../utils/sendResponse";
 
 export const createReview = catchAsync(async (req: Request, res: Response) => {
-    const payload = req.body;
+    const { productId, rating, comment } = req.body;
     const userId = req.user?.sub;
 
-    if (!mongoose.Types.ObjectId.isValid(payload.product)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid product id");
+    if (!mongoose.Types.ObjectId.isValid(productId)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid product id");
 
-    const productExists = await Product.exists({ _id: payload.product });
+    // Check product exists
+    const productExists = await Product.exists({ _id: productId });
     if (!productExists) return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
 
-    const alreadyReviewed = await Review.findOne({ product: payload.product, user: userId }).lean();
+    // Prevent duplicate review
+    const alreadyReviewed = await Review.exists({ product: productId, user: userId });
+
     if (alreadyReviewed) return sendResponse(res, httpStatus.CONFLICT, "You already reviewed this product");
 
-    const review = await Review.create({ ...payload, user: userId });
+    // Create review
+    const review = await Review.create({ product: productId, user: userId, rating, comment });
+
+    const stats = await Review.aggregate([
+        {
+            $match: { product: new mongoose.Types.ObjectId(productId) }
+        },
+        {
+            $group: { _id: "$product", averageRating: { $avg: "$rating" }, totalReviews: { $sum: 1 } }
+        }
+    ]);
+
+    if (stats.length > 0) await Product.findByIdAndUpdate(productId, { averageRating: Number(stats[0].averageRating.toFixed(1)), totalReviews: stats[0].totalReviews });
 
     return sendResponse(res, httpStatus.CREATED, "Review created successfully", null, review);
 });
@@ -35,19 +50,19 @@ export const getProductReviews = catchAsync(async (req: Request, res: Response) 
     const reviews = await Review.find({ product }).populate("user", "name avatar").sort({ createdAt: -1 }).skip(skip).limit(limit).lean();
     const total = await Review.countDocuments({ product });
 
-    return sendResponse(res, httpStatus.OK, "Reviews retrieved successfully", null, {meta: {page,limit,total},data: reviews});
+    return sendResponse(res, httpStatus.OK, "Reviews retrieved successfully", null, { meta: { page, limit, total }, data: reviews });
 });
 
-export const getSingleReview = catchAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
+// export const getSingleReview = catchAsync(async (req: Request, res: Response) => {
+//     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid review id");
+//     if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid review id");
 
-    const review = await Review.findById(id).populate("user", "name avatar").populate("product", "name slug").lean();
-    if (!review) return sendResponse(res, httpStatus.NOT_FOUND, "Review not found");
+//     const review = await Review.findById(id).populate("user", "name avatar").populate("product", "name slug").lean();
+//     if (!review) return sendResponse(res, httpStatus.NOT_FOUND, "Review not found");
 
-    return sendResponse(res, httpStatus.OK, "Review retrieved successfully", null, review);
-});
+//     return sendResponse(res, httpStatus.OK, "Review retrieved successfully", null, review);
+// });
 
 export const updateReview = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
