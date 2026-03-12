@@ -39,19 +39,27 @@ export const createReview = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const getProductReviews = catchAsync(async (req: Request, res: Response) => {
-    const { product } = req.query;
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 10;
+    const { productId: product } = req.query
 
-    if (!mongoose.Types.ObjectId.isValid(product as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid product id");
+    const page = Number(req.query.page) || 1
+    const limit = Number(req.query.limit) || 10
+    const skip = (page - 1) * limit
 
-    const skip = (page - 1) * limit;
+    if (!mongoose.Types.ObjectId.isValid(product as string)) {
+        return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid product id")
+    }
 
-    const reviews = await Review.find({ product }).populate("user", "name avatar").sort({ createdAt: -1 }).skip(skip).limit(limit).lean();
-    const total = await Review.countDocuments({ product });
+    const reviews = await Review.find({ product })
+        .populate("user", "name avatar")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
 
-    return sendResponse(res, httpStatus.OK, "Reviews retrieved successfully", null, { meta: { page, limit, total }, data: reviews });
-});
+    const total = await Review.countDocuments({ product })
+
+    return sendResponse(res, httpStatus.OK, "Reviews retrieved successfully", { total, page, limit }, reviews)
+})
 
 // export const getSingleReview = catchAsync(async (req: Request, res: Response) => {
 //     const { id } = req.params;
