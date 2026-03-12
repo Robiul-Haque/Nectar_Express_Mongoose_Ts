@@ -68,7 +68,7 @@ export const updateProduct = catchAsync(async (req, res) => {
 
     if (req.file) {
         // delete old image
-        if (product.images?.publicId) await deleteImage(product.images.publicId);
+        if (product.image?.publicId) await deleteImage(product.image.publicId);
 
         // upload new image
         const uploadResult = await uploadImageStream(req.file.buffer, {

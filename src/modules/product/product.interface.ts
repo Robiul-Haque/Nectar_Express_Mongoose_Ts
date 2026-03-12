@@ -20,7 +20,7 @@ export interface IProduct {
     price: number;
     discountPrice?: number;
     stock: number;
-    images: IProductImage;
+    image: IProductImage;
     category: Types.ObjectId;
     brand: Types.ObjectId;
     nutrition?: string;

@@ -55,7 +55,7 @@ const productSchema = new Schema<IProduct>(
             min: 0,
             default: 0
         },
-        images: {
+        image: {
             url: {
                 type: String,
                 required: true

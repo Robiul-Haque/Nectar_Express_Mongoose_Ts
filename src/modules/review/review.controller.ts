@@ -45,12 +45,12 @@ export const getProductReviews = catchAsync(async (req: Request, res: Response) 
     const limit = Number(req.query.limit) || 10
     const skip = (page - 1) * limit
 
-    if (!mongoose.Types.ObjectId.isValid(product as string)) {
-        return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid product id")
-    }
+    if (!mongoose.Types.ObjectId.isValid(product as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid product id")
 
     const reviews = await Review.find({ product })
-        .populate("user", "name avatar")
+        .populate("product", "-_id name images")
+        .populate("user", "-_id name avatar")
+        .select("-updatedAt")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
