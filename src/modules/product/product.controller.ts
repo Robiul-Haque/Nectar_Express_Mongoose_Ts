@@ -25,7 +25,7 @@ export const createProduct = catchAsync(async (req: Request, res: Response) => {
             publicId: `product-${Date.now()}`
         });
 
-        payload.images = {
+        payload.image = {
             url: uploadResult.secure_url,
             publicId: uploadResult.public_id
         };
