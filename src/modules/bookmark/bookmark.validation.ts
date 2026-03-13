@@ -4,11 +4,11 @@ import mongoose from "mongoose";
 const objectIdSchema = z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), { message: "Invalid ObjectId" });
 
 export const createBookmarkSchema = z.object({
-    body: z.object({ product: objectIdSchema }).strict()
+    body: z.object({ productId: objectIdSchema }).strict()
 });
 
 export const deleteBookmarkSchema = z.object({
-    params: z.object({ productId: objectIdSchema })
+    params: z.object({ id: objectIdSchema })
 });
 
 export const getBookmarksSchema = z.object({

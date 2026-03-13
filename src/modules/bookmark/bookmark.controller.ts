@@ -6,7 +6,7 @@ import sendResponse from "../../utils/sendResponse";
 
 export const createBookmark = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user?.sub as string;
-    const { product } = req.body;
+    const { productId: product } = req.body;
 
     // duplicate bookmark prevent
     const isExist = await Bookmark.exists({ user: userId, product });
@@ -15,16 +15,6 @@ export const createBookmark = catchAsync(async (req: Request, res: Response) => 
     const bookmark = await Bookmark.create({ user: userId, product });
 
     return sendResponse(res, httpStatus.CREATED, "Bookmark added successfully", null, bookmark);
-});
-
-export const deleteBookmark = catchAsync(async (req: Request, res: Response) => {
-    const userId = req.user?.sub as string;
-    const { productId } = req.params;
-
-    const deleted = await Bookmark.findOneAndDelete({ user: userId, product: productId });
-    if (!deleted) return sendResponse(res, httpStatus.NOT_FOUND, "Bookmark not found");
-
-    return sendResponse(res, httpStatus.OK, "Bookmark removed successfully");
 });
 
 export const getBookmarks = catchAsync(async (req: Request, res: Response) => {
@@ -36,7 +26,8 @@ export const getBookmarks = catchAsync(async (req: Request, res: Response) => {
 
     const [bookmarks, total] = await Promise.all([
         Bookmark.find({ user: userId })
-            .populate({ path: "product", select: "name price images slug" })
+            .select("-updatedAt")
+            .populate({ path: "product" })
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -46,4 +37,13 @@ export const getBookmarks = catchAsync(async (req: Request, res: Response) => {
     ]);
 
     return sendResponse(res, httpStatus.OK, "Bookmarks retrieved successfully", { total, page, limit }, bookmarks);
+});
+
+export const deleteBookmark = catchAsync(async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    const deleted = await Bookmark.findByIdAndDelete(id);
+    if (!deleted) return sendResponse(res, httpStatus.NOT_FOUND, "Bookmark not found");
+
+    return sendResponse(res, httpStatus.OK, "Bookmark removed successfully");
 });
