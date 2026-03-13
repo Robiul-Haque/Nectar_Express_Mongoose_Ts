@@ -9,20 +9,17 @@ const reviewSchema = new Schema<IReview>(
             required: true,
             index: true
         },
-
         user: {
             type: Schema.Types.ObjectId,
             ref: "User",
             required: true
         },
-
         rating: {
             type: Number,
             required: true,
             min: 1,
             max: 5
         },
-
         comment: {
             type: String,
             trim: true,
@@ -37,4 +34,5 @@ const reviewSchema = new Schema<IReview>(
 
 reviewSchema.index({ product: 1, user: 1 }, { unique: true });
 
-export const Review = model<IReview>("Review", reviewSchema);
+const Review = model<IReview>("Review", reviewSchema);
+export default Review;

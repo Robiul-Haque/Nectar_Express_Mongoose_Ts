@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import catchAsync from "../../utils/catchAsync";
 import sendResponse from "../../utils/sendResponse";
-import { Brand } from "./brand.model";
+import Brand from "./brand.model";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
 import status from "http-status";
 

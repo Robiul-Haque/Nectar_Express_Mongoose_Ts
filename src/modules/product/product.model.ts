@@ -113,4 +113,5 @@ productSchema.index({ name: "text", description: "text" });
 productSchema.index({ category: 1, isActive: 1 });
 productSchema.index({ price: 1 });
 
-export const Product = model<IProduct>("Product", productSchema);
+const Product = model<IProduct>("Product", productSchema);
+export default Product;

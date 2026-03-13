@@ -10,6 +10,6 @@ router.post("/create", authenticate(["user"]), validateRequest(createReviewSchem
 router.get("/", authenticate(["user"]), getProductReviews);
 // router.get("/:id", authenticate(["admin"]), getSingleReview);
 router.patch("/:id", authenticate(["user", "admin"]), validateRequest(updateReviewSchema), updateReview);
-router.delete("/:id", authenticate(["user", "admin"]), deleteReview);
+router.delete("/:id", authenticate(["admin"]), deleteReview);
 
 export default router;

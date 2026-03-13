@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import httpStatus from "http-status";
-import { Review } from "./review.model";
-import { Product } from "../product/product.model";
+import Review from "./review.model";
+import Product from "../product/product.model";
 import catchAsync from "../../utils/catchAsync";
 import sendResponse from "../../utils/sendResponse";
 
@@ -75,13 +75,15 @@ export const getProductReviews = catchAsync(async (req: Request, res: Response) 
 export const updateReview = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
     const userId = req.user?.sub;
+    const role = req.user?.role;
 
     if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid review id");
 
     const review = await Review.findById(id);
     if (!review) return sendResponse(res, httpStatus.NOT_FOUND, "Review not found");
-    if (review.user.toString() !== userId) return sendResponse(res, httpStatus.FORBIDDEN, "You cannot update this review");
 
+    // Only owner or admin
+    if (role !== "admin" && review.user.toString() !== userId) return sendResponse(res, httpStatus.FORBIDDEN, "You cannot update this review");
     const updatedReview = await Review.findByIdAndUpdate(id, req.body, { new: true, runValidators: true }).lean();
 
     return sendResponse(res, httpStatus.OK, "Review updated successfully", null, updatedReview);
@@ -90,14 +92,13 @@ export const updateReview = catchAsync(async (req: Request, res: Response) => {
 export const deleteReview = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
     const userId = req.user?.sub;
+    const role = req.user?.role;
 
     if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid review id");
 
-    const review = await Review.findById(id);
-    if (!review) return sendResponse(res, httpStatus.NOT_FOUND, "Review not found");
-    if (review.user.toString() !== userId) return sendResponse(res, httpStatus.FORBIDDEN, "You cannot delete this review");
-
-    await Review.findByIdAndDelete(id);
+    const filter = role === "admin" ? { _id: id } : { _id: id, user: userId };
+    const deletedReview = await Review.findOneAndDelete(filter);
+    if (!deletedReview) return sendResponse(res, httpStatus.FORBIDDEN, "You cannot delete this review or review not found");
 
     return sendResponse(res, httpStatus.OK, "Review deleted successfully");
 });

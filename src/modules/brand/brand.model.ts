@@ -33,4 +33,5 @@ const brandSchema = new Schema<IBrand>(
 brandSchema.index({ isActive: 1, name: 1 });
 brandSchema.index({ name: "text" });
 
-export const Brand = model<IBrand>("Brand", brandSchema);
+const Brand = model<IBrand>("Brand", brandSchema);
+export default Brand;

@@ -1,6 +1,6 @@
 import catchAsync from "../../utils/catchAsync";
 import { Request, Response } from "express";
-import { Category } from "./category.model";
+import Category from "./category.model";
 import httpStatus from "http-status";
 import sendResponse from "../../utils/sendResponse";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
@@ -85,10 +85,10 @@ export const updateCategory = catchAsync(async (req: Request, res: Response) => 
         };
     }
 
-    const updatedCategory = await Category.findByIdAndUpdate(id,payload,{new: true,runValidators: true}).lean();
+    const updatedCategory = await Category.findByIdAndUpdate(id, payload, { new: true, runValidators: true }).lean();
     if (!updatedCategory) return sendResponse(res, httpStatus.NOT_FOUND, "Category not found");
 
-    return sendResponse(res,httpStatus.OK,"Category updated successfully",null,updatedCategory);
+    return sendResponse(res, httpStatus.OK, "Category updated successfully", null, updatedCategory);
 
 });
 

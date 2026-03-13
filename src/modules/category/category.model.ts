@@ -46,4 +46,5 @@ const categorySchema = new Schema<ICategory>(
 categorySchema.index({ isActive: 1, parent: 1 });
 categorySchema.index({ name: "text" });
 
-export const Category = model<ICategory>("Category", categorySchema);
+const Category = model<ICategory>("Category", categorySchema);
+export default Category;
