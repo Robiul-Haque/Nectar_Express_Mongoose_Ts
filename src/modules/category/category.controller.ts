@@ -35,9 +35,7 @@ export const getAllCategories = catchAsync(async (req: Request, res: Response) =
     const { search, page = 1, limit = 10, active: isActive } = req.query;
 
     const filter: any = {};
-
     if (search) filter.$text = { $search: search as string };
-
     if (isActive !== undefined) filter.isActive = isActive === "true";
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -94,7 +92,6 @@ export const updateCategory = catchAsync(async (req: Request, res: Response) => 
 
 export const deleteCategory = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid category id");
 
     const deleted = await Category.findByIdAndDelete(req.params.id);
     if (!deleted) return sendResponse(res, httpStatus.NOT_FOUND, "Category not found");

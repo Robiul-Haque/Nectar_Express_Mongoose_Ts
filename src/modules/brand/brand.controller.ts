@@ -5,12 +5,6 @@ import Brand from "./brand.model";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
 import status from "http-status";
 
-export const getAppBrands = catchAsync(async (_req: Request, res: Response) => {
-    const brands = await Brand.find({ isActive: true }).select("name -_id").sort({ name: 1 }).lean();
-
-    return sendResponse(res, status.OK, "Brands fetched successfully", null, brands);
-});
-
 export const createBrand = catchAsync(async (req: Request, res: Response) => {
     const { name } = req.body;
 
@@ -37,13 +31,17 @@ export const createBrand = catchAsync(async (req: Request, res: Response) => {
     return sendResponse(res, status.CREATED, "Brand created successfully", null, brand);
 });
 
+export const getAppBrands = catchAsync(async (_req: Request, res: Response) => {
+    const brands = await Brand.find({ isActive: true }).select("name -_id").sort({ name: 1 }).lean();
+
+    return sendResponse(res, status.OK, "Brands fetched successfully", null, brands);
+});
+
 export const getAllBrands = catchAsync(async (req: Request, res: Response) => {
     const { page = 1, limit = 10, search, active: isActive } = req.query as any;
 
     const filter: any = {};
-
     if (search) filter.$text = { $search: search };
-
     if (isActive !== undefined) filter.isActive = isActive === "true";
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -54,7 +52,7 @@ export const getAllBrands = catchAsync(async (req: Request, res: Response) => {
     ]);
 
     return sendResponse(res, 200, "Brands retrieved successfully", { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) }, brands);
-});
+})
 
 export const getSingleBrand = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
