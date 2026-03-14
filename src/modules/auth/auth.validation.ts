@@ -61,9 +61,9 @@ export const googleLoginSchema = z.object({
     });
 
 export const facebookLoginSchema = z.object({
-    accessToken: z.string().min(1, "Facebook access token is required").min(10, "Invalid Facebook access token"),
+    idToken: z.string().min(1, "Firebase ID token is required").min(10, "Invalid Firebase ID token"),
     fcmToken: z.string().min(1, "FCM token cannot be empty").optional(),
-    platform: z.enum(["android", "ios", "web"], { message: "Platform must be android, ios, or web" }).optional(),
+    platform: z.enum(["android", "ios", "web"], { message: "Platform must be android, ios, or web", }).optional(),
     deviceId: z.string().nullable().optional()
 })
     .strict()
@@ -72,7 +72,7 @@ export const facebookLoginSchema = z.object({
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 message: "Platform is required when fcmToken is provided",
-                path: ["platform"],
+                path: ["platform"]
             });
         }
     });

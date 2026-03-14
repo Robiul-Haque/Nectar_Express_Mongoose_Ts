@@ -19,6 +19,7 @@ export const createBookmark = catchAsync(async (req: Request, res: Response) => 
 
 export const getBookmarks = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user?.sub as string;
+    if (!userId) return sendResponse(res, httpStatus.UNAUTHORIZED, "User not authenticated");
 
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
