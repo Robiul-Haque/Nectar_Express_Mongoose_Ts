@@ -2,10 +2,9 @@ import catchAsync from "../../utils/catchAsync";
 import { Request, Response } from "express";
 import slugify from "slugify";
 import httpStatus from "http-status";
-import { Product } from "./product.model";
+import Product from "./product.model";
 import sendResponse from "../../utils/sendResponse";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
-import mongoose from "mongoose";
 
 export const createProduct = catchAsync(async (req: Request, res: Response) => {
     const payload: any = req.body;
@@ -36,7 +35,7 @@ export const createProduct = catchAsync(async (req: Request, res: Response) => {
     return sendResponse(res, httpStatus.CREATED, "Product created successfully", null, product);
 });
 
-export const getAllProducts = catchAsync(async (_req, res) => {
+export const getAllProducts = catchAsync(async (_req: Request, res: Response) => {
     const products = await Product.find().populate("category", "name").populate("brand", "name").select("-nutrition").lean();
 
     return sendResponse(res, httpStatus.OK, "Products retrieved successfully", null, products);
@@ -55,7 +54,7 @@ export const getAllProducts = catchAsync(async (_req, res) => {
 //     return sendResponse(res, httpStatus.OK, "Product retrieved successfully", null, product);
 // });
 
-export const updateProduct = catchAsync(async (req, res) => {
+export const updateProduct = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
 
     const product = await Product.findById(id);
@@ -87,9 +86,8 @@ export const updateProduct = catchAsync(async (req, res) => {
     return sendResponse(res, httpStatus.OK, "Product updated successfully", null, updatedProduct);
 });
 
-export const deleteProduct = catchAsync(async (req, res) => {
+export const deleteProduct = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid product id");
 
     const deleted = await Product.findByIdAndDelete(id).lean();
     if (!deleted) return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");

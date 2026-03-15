@@ -95,7 +95,6 @@ export const updateProfile = catchAsync(async (req: Request, res: Response) => {
 
 export const getProfile = catchAsync(async (req: Request, res: Response) => {
     if (!req.user) return sendResponse(res, status.UNAUTHORIZED, "User not authenticated");
-
     const userId = req.user.sub;
 
     const user = await User.findById(userId).select("-_id name email avatar").lean();

@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { authenticate } from "../../middlewares/auth.middleware";
-import { upload } from "../../middlewares/upload.middleware";
-import { validateRequest } from "../../middlewares/validateRequest";
+import authenticate from "../../middlewares/auth.middleware";
+import upload from "../../middlewares/upload.middleware";
+import validateRequest from "../../middlewares/validateRequest";
 import { createProductSchema, updateProductSchema } from "./product.validation";
 import { createProduct, deleteProduct, getAllProducts, updateProduct } from "./product.controller";
 

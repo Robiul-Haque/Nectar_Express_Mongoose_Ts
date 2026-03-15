@@ -2,8 +2,8 @@ import mongoose from 'mongoose';
 import app from './app';
 import { env } from './config/env';
 import logger from './utils/logger';
+import seedAdmin from './seeders/adminSeeder';
 import { verifySMTP } from './utils/sendOtpEmail';
-import { seedAdmin } from './seeders/adminSeeder';
 
 async function bootstrap() {
     // Start server instantly

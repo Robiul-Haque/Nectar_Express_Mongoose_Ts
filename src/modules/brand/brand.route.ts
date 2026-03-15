@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { authenticate } from "../../middlewares/auth.middleware";
-import { upload } from "../../middlewares/upload.middleware";
-import { validateRequest } from "../../middlewares/validateRequest";
+import authenticate from "../../middlewares/auth.middleware";
+import upload from "../../middlewares/upload.middleware";
+import validateRequest from "../../middlewares/validateRequest";
 import { createBrand, deleteBrand, getAllBrands, getAppBrands, getSingleBrand, updateBrand } from "./brand.controller";
 import { createBrandSchema, deleteBrandSchema, getAllBrandsSchema, getSingleBrandSchema, updateBrandSchema } from "./brand.validation";
 

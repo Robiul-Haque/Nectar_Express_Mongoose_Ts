@@ -28,7 +28,7 @@ declare global {
     }
 }
 
-export const authenticate = (requiredRoles?: Role[]) =>
+const authenticate = (requiredRoles?: Role[]) =>
     catchAsync(async (req: Request, res: Response, next: NextFunction) => {
         const authHeader = req.headers.authorization;
 
@@ -60,9 +60,7 @@ export const authenticate = (requiredRoles?: Role[]) =>
         if (!user.isVerified && user.role !== "admin") return sendResponse(res, status.FORBIDDEN, "Please verify your email to continue");
 
         // ROLE BASED ACCESS CONTROL
-        if (requiredRoles?.length && !requiredRoles.includes(user.role)) {
-            return sendResponse(res, status.FORBIDDEN, `Access denied. The role '${user.role}' is not permitted to access this API. Required role: ${requiredRoles.join(" or ")}`);
-        }
+        if (requiredRoles?.length && !requiredRoles.includes(user.role)) return sendResponse(res, status.FORBIDDEN, `Access denied. The role '${user.role}' is not permitted to access this API. Required role: ${requiredRoles.join(" or ")}`);
 
         // Attach user
         req.user = {
@@ -73,3 +71,5 @@ export const authenticate = (requiredRoles?: Role[]) =>
 
         next();
     });
+
+export default authenticate;

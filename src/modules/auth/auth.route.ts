@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { authenticate } from "../../middlewares/auth.middleware";
-import { validateRequest } from "../../middlewares/validateRequest";
+import authenticate from "../../middlewares/auth.middleware";
+import validateRequest from "../../middlewares/validateRequest";
 import { emailLoginSchema, emailRegisterSchema, facebookLoginSchema, forgotPasswordSchema, googleLoginSchema, otpVerifySchema, refreshTokenSchema, resetPasswordSchema } from "./auth.validation";
 import { adminLogin, emailLogin, facebookLogin, forgotPassword, googleLogin, logout, refreshToken, resetPassword, signUp, verifyOTP } from "./auth.controller";
 

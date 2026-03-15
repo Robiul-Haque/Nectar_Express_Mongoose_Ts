@@ -4,7 +4,6 @@ import Category from "./category.model";
 import httpStatus from "http-status";
 import sendResponse from "../../utils/sendResponse";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
-import mongoose from "mongoose";
 
 export const createCategory = catchAsync(async (req: Request, res: Response) => {
     const { name, description, featured: isFeatured, order: sortOrder } = req.body;
@@ -91,8 +90,6 @@ export const updateCategory = catchAsync(async (req: Request, res: Response) => 
 });
 
 export const deleteCategory = catchAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
-
     const deleted = await Category.findByIdAndDelete(req.params.id);
     if (!deleted) return sendResponse(res, httpStatus.NOT_FOUND, "Category not found");
 

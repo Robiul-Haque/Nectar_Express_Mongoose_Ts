@@ -25,12 +25,8 @@ export const createReview = catchAsync(async (req: Request, res: Response) => {
     const review = await Review.create({ product: productId, user: userId, rating, comment });
 
     const stats = await Review.aggregate([
-        {
-            $match: { product: new mongoose.Types.ObjectId(productId) }
-        },
-        {
-            $group: { _id: "$product", averageRating: { $avg: "$rating" }, totalReviews: { $sum: 1 } }
-        }
+        { $match: { product: new mongoose.Types.ObjectId(productId) } },
+        { $group: { _id: "$product", averageRating: { $avg: "$rating" }, totalReviews: { $sum: 1 } } }
     ]);
 
     if (stats.length > 0) await Product.findByIdAndUpdate(productId, { averageRating: Number(stats[0].averageRating.toFixed(1)), totalReviews: stats[0].totalReviews });
@@ -39,13 +35,11 @@ export const createReview = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const getProductReviews = catchAsync(async (req: Request, res: Response) => {
-    const { product } = req.query
+    const { productId: product } = req.query
 
     const page = Number(req.query.page) || 1
     const limit = Number(req.query.limit) || 10
     const skip = (page - 1) * limit
-
-    if (!mongoose.Types.ObjectId.isValid(product as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid product id")
 
     const reviews = await Review.find({ product })
         .populate("product", "-_id name images")
@@ -73,18 +67,15 @@ export const getProductReviews = catchAsync(async (req: Request, res: Response) 
 // });
 
 export const updateReview = catchAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
     const userId = req.user?.sub;
     const role = req.user?.role;
 
-    if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid review id");
-
-    const review = await Review.findById(id);
+    const review = await Review.findById({ id: req.body.reviewId });
     if (!review) return sendResponse(res, httpStatus.NOT_FOUND, "Review not found");
 
     // Only owner or admin
     if (role !== "admin" && review.user.toString() !== userId) return sendResponse(res, httpStatus.FORBIDDEN, "You cannot update this review");
-    const updatedReview = await Review.findByIdAndUpdate(id, req.body, { new: true, runValidators: true }).lean();
+    const updatedReview = await Review.findByIdAndUpdate({id: req.body.reviewId}, req.body, { new: true, runValidators: true }).lean();
 
     return sendResponse(res, httpStatus.OK, "Review updated successfully", null, updatedReview);
 });
@@ -93,8 +84,6 @@ export const deleteReview = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
     const userId = req.user?.sub;
     const role = req.user?.role;
-
-    if (!mongoose.Types.ObjectId.isValid(id as string)) return sendResponse(res, httpStatus.BAD_REQUEST, "Invalid review id");
 
     const filter = role === "admin" ? { _id: id } : { _id: id, user: userId };
     const deletedReview = await Review.findOneAndDelete(filter);

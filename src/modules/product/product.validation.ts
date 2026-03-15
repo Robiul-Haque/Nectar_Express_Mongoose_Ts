@@ -9,7 +9,7 @@ export const createProductSchema = z.object({
         description: z.string().max(2000).optional(),
         measurement: z.object({
             value: z.coerce.number().min(0),
-            unit: z.enum(["kg", "g", "pc"]),
+            unit: z.enum(["kg", "g", "pc"])
         }),
         price: z.coerce.number().min(0),
         discountPrice: z.coerce.number().min(0).optional(),
@@ -18,7 +18,7 @@ export const createProductSchema = z.object({
         brand: objectIdSchema,
         nutrition: z.string().max(1000).optional(),
         isFeatured: z.coerce.boolean().optional(),
-        isActive: z.coerce.boolean().optional(),
+        isActive: z.coerce.boolean().optional()
     })
         .refine(
             (data) => {
