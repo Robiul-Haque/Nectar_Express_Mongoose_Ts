@@ -7,13 +7,13 @@ const cartItemSchema = new Schema<ICartItem>(
             type: Schema.Types.ObjectId,
             ref: "Product",
             required: [true, "Product is required"],
-            index: true,
+            index: true
         },
         quantity: {
             type: Number,
             required: [true, "Quantity is required"],
             min: [1, "Quantity must be at least 1"],
-            default: 1,
+            default: 1
         },
         price: {
             type: Number,
@@ -22,8 +22,8 @@ const cartItemSchema = new Schema<ICartItem>(
         },
         variant: {
             type: String,
-            trim: true,
-        },
+            trim: true
+        }
     },
     { _id: false }
 );
@@ -35,25 +35,25 @@ const cartSchema = new Schema<ICart>(
             ref: "User",
             required: [true, "User is required"],
             unique: true,
-            index: true,
+            index: true
         },
         items: [cartItemSchema],
         totalPrice: {
             type: Number,
             required: true,
             default: 0,
-            min: [0, "Total price cannot be negative"],
+            min: [0, "Total price cannot be negative"]
         },
         totalQuantity: {
             type: Number,
             required: true,
             default: 0,
-            min: [0, "Total quantity cannot be negative"],
-        },
+            min: [0, "Total quantity cannot be negative"]
+        }
     },
     {
         timestamps: true,
-        versionKey: false,
+        versionKey: false
     }
 );
 

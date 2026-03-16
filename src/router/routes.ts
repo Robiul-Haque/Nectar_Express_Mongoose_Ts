@@ -6,6 +6,7 @@ import categoryRoute from "../modules/category/category.route";
 import productRoute from "../modules/product/product.route";
 import reviewRoute from "../modules/review/review.route";
 import bookmarkRoute from "../modules/bookmark/bookmark.route";
+import cartRoute from "../modules/cart/cart.router";
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use("/category", categoryRoute);
 router.use("/product", productRoute);
 router.use("/review", reviewRoute);
 router.use("/bookmark", bookmarkRoute);
+router.use("/cart", cartRoute);
 
 export default router;

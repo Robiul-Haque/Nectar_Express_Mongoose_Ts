@@ -1,24 +1,34 @@
 import { z } from "zod";
 import mongoose from "mongoose";
 
-export const objectIdSchema = z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {message: "Invalid ObjectId"});
+const objectId = z.string().refine((v) => mongoose.Types.ObjectId.isValid(v), { message: "Invalid id" });
 
-export const cartItemSchema = z.object({
-    product: objectIdSchema,
-    quantity: z.number().int().min(1, "Quantity must be at least 1").default(1),
-    price: z.number().nonnegative("Price must be >= 0"),
-    variant: z.string().optional()
+const itemSchema = z.object({
+    productId: objectId,
+    quantity: z.coerce.number().min(1).max(20)
 });
 
-export const createCartSchema = z.object({
+export const cartBulkSchema = z.object({
     body: z.object({
-        items: z.array(cartItemSchema).min(1, "Cart must have at least one item")
-    })
+        add: z.array(itemSchema).optional(),
+        update: z.array(itemSchema).optional(),
+        remove: z.array(objectId).optional()
+    }).strict()
 });
 
-export const updateCartItemSchema = z.object({
+export const getAllCartsSchema = z.object({
+    query: z.object({
+        page: z.coerce.number().min(1).optional().default(1),
+        limit: z.coerce.number().min(1).max(100).optional().default(10)
+    }).strict()
+});
+
+export const adminUpdateCartSchema = z.object({
+    params: z.object({
+        cartId: objectId
+    }),
     body: z.object({
-        product: objectIdSchema,
-        quantity: z.number().int().min(0, "Quantity must be >= 0")
-    })
+        productId: objectId,
+        action: z.enum(["increment", "decrement", "remove"])
+    }).strict()
 });
