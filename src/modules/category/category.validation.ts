@@ -8,7 +8,7 @@ export const createCategorySchema = z.object({
         name: z.string().min(2).max(100),
         description: z.string().max(500).optional(),
         isFeatured: z.coerce.boolean().optional(),
-        sortOrder: z.coerce.number().optional(),
+        sortOrder: z.coerce.number().optional()
     })
 });
 
@@ -32,10 +32,10 @@ export const updateCategorySchema = z.object({
         description: z.string().max(500).optional(),
         isActive: z.coerce.boolean().optional(),
         isFeatured: z.coerce.boolean().optional(),
-        sortOrder: z.coerce.number().optional(),
+        sortOrder: z.coerce.number().optional()
     })
 });
 
 export const deleteCategorySchema = z.object({
-    params: z.object({ id: objectIdSchema }).strict(),
+    params: z.object({ id: objectIdSchema }).strict()
 });
