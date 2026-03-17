@@ -8,7 +8,7 @@ import { createProduct, deleteProduct, getAllProducts, updateProduct } from "./p
 const router = Router();
 
 router.post("/create", authenticate(["admin"]), upload.single("image"), validateRequest(createProductSchema), createProduct);
-router.get("/", authenticate(["admin"]), getAllProducts);
+router.get("/", authenticate(["user", "admin"]), getAllProducts);
 // router.get("/:id", ProductController.getSingleProduct);
 router.patch("/:id", authenticate(["admin"]), upload.single("image"), validateRequest(updateProductSchema), updateProduct);
 router.delete("/:id", authenticate(["admin"]), deleteProduct);

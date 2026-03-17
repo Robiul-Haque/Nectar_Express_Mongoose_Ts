@@ -10,7 +10,7 @@ const router = Router();
 router.patch("/items", authenticate(["user"]), validateRequest(cartBulkSchema), updateCartItems);
 
 // Admin routes
-router.get("/", authenticate(["admin"]), validateRequest(getAllCartsSchema), getAllCarts);
-router.patch("/admin/cart-item/:cartId", authenticate(["admin"]), validateRequest(adminUpdateCartSchema), adminUpdateCartItem);
+router.get("/", authenticate(["user", "admin"]), validateRequest(getAllCartsSchema), getAllCarts);
+router.patch("/admin/cart-item/:id", authenticate(["admin"]), validateRequest(adminUpdateCartSchema), adminUpdateCartItem);
 
 export default router;

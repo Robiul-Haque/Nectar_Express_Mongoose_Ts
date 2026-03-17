@@ -25,7 +25,7 @@ export const getAllCartsSchema = z.object({
 
 export const adminUpdateCartSchema = z.object({
     params: z.object({
-        cartId: objectId
+        id: objectId
     }),
     body: z.object({
         productId: objectId,
