@@ -73,7 +73,7 @@ export const getAllCarts = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const adminUpdateCartItem = catchAsync(async (req: Request, res: Response) => {
-    const { cartId } = req.params;
+    const { id: cartId } = req.params;
     const { productId, action } = req.body;
 
     const cart = await Cart.findById(cartId);
