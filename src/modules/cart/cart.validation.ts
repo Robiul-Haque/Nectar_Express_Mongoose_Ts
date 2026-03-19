@@ -29,6 +29,6 @@ export const adminUpdateCartSchema = z.object({
     }),
     body: z.object({
         productId: objectId,
-        action: z.enum(["increment", "decrement", "remove"])
+        quantity: z.number().min(0)
     }).strict()
 });

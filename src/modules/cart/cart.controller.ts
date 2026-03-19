@@ -74,7 +74,7 @@ export const getAllCarts = catchAsync(async (req: Request, res: Response) => {
 
 export const adminUpdateCartItem = catchAsync(async (req: Request, res: Response) => {
     const { id: cartId } = req.params;
-    const { productId, action } = req.body;
+    const { productId, quantity } = req.body;
 
     const cart = await Cart.findById(cartId);
     if (!cart) return sendResponse(res, 404, "Cart not found");
@@ -82,15 +82,26 @@ export const adminUpdateCartItem = catchAsync(async (req: Request, res: Response
     const item = cart.items.find((i) => i.product.toString() === productId);
     if (!item) return sendResponse(res, 404, "Item not found in cart");
 
-    if (action === "increment") {
-        item.quantity += 1;
-    } else if (action === "decrement") {
-        item.quantity -= 1;
-        if (item.quantity <= 0) cart.items = cart.items.filter((i) => i.product.toString() !== productId);
-    } else if (action === "remove") {
+    // 🔹 quantity <= 0 হলে remove
+    if (quantity <= 0) {
         cart.items = cart.items.filter((i) => i.product.toString() !== productId);
+    } else {
+        // 🔹 product check (stock validation)
+        const product = await Product.findById(productId).select("stock price discountPrice").lean();
+        if (!product) return sendResponse(res, 404, "Product not found");
+
+        if (product.stock < quantity) {
+            return sendResponse(res, status.BAD_REQUEST, "Insufficient stock");
+        }
+
+        // 🔹 direct quantity set
+        item.quantity = quantity;
+
+        // 🔹 price sync (optional but recommended)
+        item.price = product.discountPrice ?? product.price;
     }
 
+    // 🔹 recalc
     cart.totalQuantity = cart.items.reduce((sum, i) => sum + i.quantity, 0);
     cart.totalPrice = cart.items.reduce((sum, i) => sum + i.quantity * i.price, 0);
 
