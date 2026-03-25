@@ -9,13 +9,19 @@ export const createPaymentIntent = catchAsync(async (req, res) => {
     const userId = req.user!.sub;
 
     const cart = await Cart.findOne({ user: userId }).populate("items.product");
-    if (!cart || cart.items.length === 0) return sendResponse(res, status.NOT_FOUND, "Cart is empty", null);
+    if (!cart || cart.items.length === 0)
+        return sendResponse(res, status.NOT_FOUND, "Cart is empty");
 
     let total = 0;
 
     for (const item of cart.items) {
         const product: any = item.product;
-        if (!product || !product.isActive) return sendResponse(res, status.NOT_FOUND, "Invalid product", null);
+
+        if (!product || !product.isActive)
+            return sendResponse(res, status.BAD_REQUEST, "Invalid product");
+
+        if (product.stock < item.quantity)
+            return sendResponse(res, status.BAD_REQUEST, "Stock issue");
 
         const price = product.discountPrice ?? product.price;
         total += price * item.quantity;
@@ -27,5 +33,7 @@ export const createPaymentIntent = catchAsync(async (req, res) => {
         metadata: { userId }
     });
 
-    return sendResponse(res, status.OK, "Payment intent created", null, { clientSecret: paymentIntent.client_secret });
+    return sendResponse(res, status.OK, "Payment intent created", null, {
+        clientSecret: paymentIntent.client_secret
+    });
 });

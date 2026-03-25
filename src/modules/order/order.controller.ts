@@ -9,13 +9,17 @@ import status from "http-status";
 
 export const createOrder = catchAsync(async (req: Request, res: Response) => {
     const session = await mongoose.startSession();
+
     try {
         session.startTransaction();
 
         const userId = req.user!.sub;
-        const { shippingAddress } = req.body;
+        const { paymentIntentId, shippingAddress } = req.body;
 
-        const cart = await Cart.findOne({ user: userId }).populate("items.product", "name image stock isActive price discountPrice").session(session);
+        const cart = await Cart.findOne({ user: userId })
+            .populate("items.product", "name image stock isActive price discountPrice")
+            .session(session);
+
         if (!cart || cart.items.length === 0) {
             await session.abortTransaction();
             return sendResponse(res, status.BAD_REQUEST, "Cart is empty");
@@ -26,25 +30,11 @@ export const createOrder = catchAsync(async (req: Request, res: Response) => {
         for (const item of cart.items) {
             const product: any = item.product;
 
-            // Product exists check
-            if (!product) {
+            if (!product || !product.isActive || product.stock < item.quantity) {
                 await session.abortTransaction();
-                return sendResponse(res, status.NOT_FOUND, "Product not found");
+                return sendResponse(res, status.BAD_REQUEST, "Stock issue");
             }
 
-            // Active check
-            if (!product.isActive) {
-                await session.abortTransaction();
-                return sendResponse(res, status.BAD_REQUEST, `${product.name} is unavailable`);
-            }
-
-            // Stock check
-            if (product.stock < item.quantity) {
-                await session.abortTransaction();
-                return sendResponse(res, status.BAD_REQUEST, `Stock issue for ${product.name}`);
-            }
-
-            // Safe price (recalculate)
             const finalPrice = product.discountPrice ?? product.price;
 
             orderItems.push({
@@ -56,43 +46,34 @@ export const createOrder = catchAsync(async (req: Request, res: Response) => {
             });
         }
 
-        if (orderItems.length === 0) {
-            await session.abortTransaction();
-            return sendResponse(res, 400, "No valid items");
-        }
-
         const [order] = await Order.create([{
             user: userId,
             items: orderItems,
             totalQuantity: cart.totalQuantity,
             totalPrice: orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0),
-            shippingAddress
+            shippingAddress,
+            paymentStatus: "paid",
+            paymentIntentId
         }], { session });
 
-        // Atomic stock update
         for (const item of orderItems) {
-
             const updated = await Product.updateOne(
-                {
-                    _id: item.product,
-                    stock: { $gte: item.quantity } // prevent race condition
-                },
-                {
-                    $inc: { stock: -item.quantity }
-                },
+                { _id: item.product, stock: { $gte: item.quantity } },
+                { $inc: { stock: -item.quantity } },
                 { session }
             );
 
             if (updated.modifiedCount === 0) {
                 await session.abortTransaction();
-                return sendResponse(res, 400, "Stock conflict, try again");
+                return sendResponse(res, 400, "Stock conflict");
             }
         }
 
         await Cart.deleteOne({ user: userId }).session(session);
         await session.commitTransaction();
 
-        return sendResponse(res, status.CREATED, "Order placed successfully", null, order);
+        return sendResponse(res, status.CREATED, "Order confirmed", null, order);
+
     } catch (error) {
         await session.abortTransaction();
         throw error;

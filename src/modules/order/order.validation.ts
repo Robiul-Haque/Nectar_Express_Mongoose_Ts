@@ -5,6 +5,7 @@ export const objectId = z.string().refine((val) => mongoose.Types.ObjectId.isVal
 
 export const createOrderSchema = z.object({
     body: z.object({
+        paymentIntentId: z.string().min(10),
         shippingAddress: z.object({
             address: z.string().min(5),
             city: z.string().min(2),

@@ -60,6 +60,16 @@ const orderSchema = new Schema(
             enum: ["pending", "confirmed", "shipped", "delivered", "cancelled"],
             default: "pending",
             index: true
+        },
+        paymentStatus: {
+            type: String,
+            enum: ["pending", "paid", "failed"],
+            default: "pending",
+            index: true
+        },
+        paymentIntentId: {
+            type: String,
+            index: true
         }
     },
     {
