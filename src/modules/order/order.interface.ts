@@ -24,6 +24,8 @@ export interface IOrder extends Document {
     totalPrice: number;
     shippingAddress: IShippingAddress;
     status: TOrderStatus;
+    paymentStatus: "pending" | "paid" | "failed";
+    paymentIntentId?: string;
     createdAt: Date;
     updatedAt: Date;
 }
