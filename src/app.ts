@@ -21,6 +21,8 @@ app.use(cors({
 }));
 app.use(compression());
 
+app.use("/api/v1/payment/webhook", express.raw({ type: "application/json" }));
+
 // Body
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

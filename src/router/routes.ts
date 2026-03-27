@@ -8,6 +8,7 @@ import reviewRoute from "../modules/review/review.route";
 import bookmarkRoute from "../modules/bookmark/bookmark.route";
 import cartRoute from "../modules/cart/cart.router";
 import orderRoute from "../modules/order/order.routes";
+import paymentRoute from "../modules/payment/payment.route";
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use("/review", reviewRoute);
 router.use("/bookmark", bookmarkRoute);
 router.use("/cart", cartRoute);
 router.use("/order", orderRoute);
+router.use("/payment", paymentRoute);
 
 export default router;
