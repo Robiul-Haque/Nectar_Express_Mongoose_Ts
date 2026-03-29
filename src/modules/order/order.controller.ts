@@ -16,9 +16,7 @@ export const createOrder = catchAsync(async (req: Request, res: Response) => {
         const userId = req.user!.sub;
         const { paymentIntentId, shippingAddress } = req.body;
 
-        const cart = await Cart.findOne({ user: userId })
-            .populate("items.product", "name image stock isActive price discountPrice")
-            .session(session);
+        const cart = await Cart.findOne({ user: userId }).populate("items.product", "name image stock isActive price discountPrice").session(session);
 
         if (!cart || cart.items.length === 0) {
             await session.abortTransaction();

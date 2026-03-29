@@ -9,50 +9,48 @@ export const updateCartItems = catchAsync(async (req: Request, res: Response) =>
     const userId = req.user!.sub;
     const { add = [], update = [], remove = [] } = req.body;
 
+    // Cart fetch or create
     let cart = await Cart.findOne({ user: userId });
     if (!cart) cart = await Cart.create({ user: userId, items: [] });
 
     const productIds = [...add.map((i: any) => i.productId), ...update.map((i: any) => i.productId)];
     const products = await Product.find({ _id: { $in: productIds }, isActive: true }).select("price discountPrice stock").lean();
-    const productMap = new Map(products.map((p) => [p._id.toString(), p]));
+    const productMap = new Map(products.map(p => [p._id.toString(), p]));
 
-    // ADD ITEMS
+    // ADD items
     for (const item of add) {
         const product = productMap.get(item.productId);
-
         if (!product) continue;
 
         const finalPrice = product.discountPrice ?? product.price;
+        const exist = cart.items.find(i => i.product.toString() === item.productId);
 
-        const exist = cart.items.find((i) => i.product.toString() === item.productId);
         if (exist) {
             const newQty = exist.quantity + item.quantity;
             if (product.stock < newQty) continue;
             exist.quantity = newQty;
         } else {
             if (product.stock < item.quantity) continue;
-
             cart.items.push({ product: item.productId, quantity: item.quantity, price: finalPrice });
         }
     }
 
-    // UPDATE ITEMS
+    // UPDATE items
     for (const item of update) {
         const product = productMap.get(item.productId);
         if (!product) continue;
 
-        const cartItem = cart.items.find((i) => i.product.toString() === item.productId);
+        const cartItem = cart.items.find(i => i.product.toString() === item.productId);
         if (!cartItem) continue;
-
         if (product.stock < item.quantity) continue;
 
         cartItem.quantity = item.quantity;
     }
 
-    // REMOVE ITEMS
-    if (remove.length) cart.items = cart.items.filter((item) => !remove.includes(item.product.toString()));
+    // REMOVE items
+    if (remove.length) cart.items = cart.items.filter(i => !remove.includes(i.product.toString()));
 
-    // RECALCULATE CART
+    // RECALCULATE totals
     cart.totalQuantity = cart.items.reduce((sum, i) => sum + i.quantity, 0);
     cart.totalPrice = cart.items.reduce((sum, i) => sum + i.quantity * i.price, 0);
 
