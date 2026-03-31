@@ -52,10 +52,15 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
             required: true,
             index: true
         },
-        devices: {
+        device: {
             type: [deviceSchema],
-            default: [],
+            default: null,
             select: false
+        },
+        notificationEnabled: {
+            type: Boolean,
+            default: true,
+            index: true
         },
         role: {
             type: String,
@@ -113,7 +118,7 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
 
 
 userSchema.index({ email: 1, provider: 1 }, { unique: true });
-userSchema.index({ "devices.token": 1 });
+userSchema.index({ "device.token": 1 });
 
 userSchema.pre("save", async function (this: Document & IUser) {
     if (!this.isModified("password") || !this.password) return;

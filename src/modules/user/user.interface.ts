@@ -16,7 +16,8 @@ export interface IUser {
     email: string;
     password?: string;
     provider: AuthProvider;
-    devices: IDevice[];
+    device: IDevice[] | null;
+    notificationEnabled: boolean;
     role: UserRole;
     avatar?: {
         url: string;
