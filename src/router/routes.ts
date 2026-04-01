@@ -9,6 +9,7 @@ import bookmarkRoute from "../modules/bookmark/bookmark.route";
 import cartRoute from "../modules/cart/cart.router";
 import orderRoute from "../modules/order/order.routes";
 import paymentRoute from "../modules/payment/payment.route";
+import notificationRoute from "../modules/notification/notification.route";
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use("/bookmark", bookmarkRoute);
 router.use("/cart", cartRoute);
 router.use("/order", orderRoute);
 router.use("/payment", paymentRoute);
+router.use("/notification", notificationRoute);
 
 export default router;

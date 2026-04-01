@@ -54,7 +54,7 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
         },
         device: {
             type: [deviceSchema],
-            default: null,
+            default: [],
             select: false
         },
         notificationEnabled: {

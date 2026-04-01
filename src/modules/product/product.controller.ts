@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import slugify from "slugify";
 import httpStatus from "http-status";
 import Product from "./product.model";
+import { sendPushNotificationToAllUsers } from "../../utils/pushNotification";
 import sendResponse from "../../utils/sendResponse";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
 
@@ -12,6 +13,7 @@ export const createProduct = catchAsync(async (req: Request, res: Response) => {
     // Generate slug
     const slug = slugify(payload.name, { lower: true, strict: true });
 
+    // Check if product already exists
     const exists = await Product.findOne({ slug }).lean();
     if (exists) return sendResponse(res, httpStatus.CONFLICT, "Product already exists");
 
@@ -30,9 +32,23 @@ export const createProduct = catchAsync(async (req: Request, res: Response) => {
         };
     }
 
+    // Create Product
     const product = await Product.create(payload);
 
-    return sendResponse(res, httpStatus.CREATED, "Product created successfully", null, product);
+    // 🔥 Send Push Notification (non-blocking)
+    sendPushNotificationToAllUsers({
+        title: "🆕 New Product Available!",
+        body: `${product.name} is now available. Grab yours today!`,
+        image: product.image?.url
+    }).catch(err => console.error("Push Notification Error:", err));
+
+    return sendResponse(
+        res,
+        httpStatus.CREATED,
+        "Product created successfully",
+        { notification: "Push notification triggered" },
+        product
+    );
 });
 
 export const getAllProducts = catchAsync(async (_req: Request, res: Response) => {
