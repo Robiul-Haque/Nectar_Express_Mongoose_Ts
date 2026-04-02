@@ -10,6 +10,8 @@ import cartRoute from "../modules/cart/cart.router";
 import orderRoute from "../modules/order/order.routes";
 import paymentRoute from "../modules/payment/payment.route";
 import notificationRoute from "../modules/notification/notification.route";
+import chatRouter from "../modules/chat/chat.router";
+import sliderRouter from "../modules/slider/slider.route";
 
 const router = Router();
 
@@ -24,5 +26,7 @@ router.use("/cart", cartRoute);
 router.use("/order", orderRoute);
 router.use("/payment", paymentRoute);
 router.use("/notification", notificationRoute);
+router.use("/chat", chatRouter);
+router.use("/slider", sliderRouter);
 
 export default router;

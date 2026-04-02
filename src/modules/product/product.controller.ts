@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import slugify from "slugify";
 import httpStatus from "http-status";
 import Product from "./product.model";
-import { sendPushNotificationToAllUsers } from "../../utils/pushNotification";
+import { sendPushNotification, TPushPayload } from "../../utils/pushNotification";
 import sendResponse from "../../utils/sendResponse";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
 
@@ -13,13 +13,12 @@ export const createProduct = catchAsync(async (req: Request, res: Response) => {
     // Generate slug
     const slug = slugify(payload.name, { lower: true, strict: true });
 
-    // Check if product already exists
     const exists = await Product.findOne({ slug }).lean();
     if (exists) return sendResponse(res, httpStatus.CONFLICT, "Product already exists");
 
     payload.slug = slug;
 
-    // Image Upload
+    // Upload image (if exists)
     if (req.file) {
         const uploadResult = await uploadImageStream(req.file.buffer, {
             folder: "Nectar/Products",
@@ -32,23 +31,18 @@ export const createProduct = catchAsync(async (req: Request, res: Response) => {
         };
     }
 
-    // Create Product
     const product = await Product.create(payload);
 
-    // 🔥 Send Push Notification (non-blocking)
-    sendPushNotificationToAllUsers({
+    const pushPayload: TPushPayload = {
         title: "🆕 New Product Available!",
         body: `${product.name} is now available. Grab yours today!`,
-        image: product.image?.url
-    }).catch(err => console.error("Push Notification Error:", err));
+        ...(product.image?.url && { image: product.image.url })
+    };
 
-    return sendResponse(
-        res,
-        httpStatus.CREATED,
-        "Product created successfully",
-        { notification: "Push notification triggered" },
-        product
-    );
+    // Send push (non-blocking)
+    sendPushNotification(pushPayload).catch(err => console.error("Push Notification Error:", err?.message || err));
+
+    return sendResponse(res, httpStatus.CREATED, "Product created successfully", { notification: "Push notification triggered" }, product);
 });
 
 export const getAllProducts = catchAsync(async (_req: Request, res: Response) => {

@@ -1,52 +1,76 @@
 import { firebaseAdmin } from "../config/firebaseAdmin.config";
 import User from "../modules/user/user.model";
+import mongoose from "mongoose";
 
-type TPushPayload = {
+export type TPushPayload = {
     title: string;
     body: string;
     image?: string;
 };
 
-export const sendPushNotificationToAllUsers = async (payload: TPushPayload) => {
-    const { title, body, image } = payload;
+type TSendOptions = {
+    userIds?: string[];
+};
 
-    // Get users who enabled notifications and have devices
-    const users = await User.find({ notificationEnabled: true, device: { $exists: true, $ne: [] } }).select("+device");
+export const sendPushNotification = async (payload: TPushPayload, options?: TSendOptions) => {
+    const { title, body, image } = payload;
+    const { userIds } = options || {};
+
+    const query: any = {
+        notificationEnabled: true,
+        device: { $exists: true, $ne: [] }
+    };
+
+    // Safe ObjectId handling
+    if (userIds?.length) {
+        const validIds = userIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+        if (!validIds.length) return { successCount: 0, failureCount: 0 };
+
+        query._id = { $in: validIds.map(id => new mongoose.Types.ObjectId(id)) };
+    }
+
+    // lean for performance
+    const users = await User.find(query).select("+device").lean();
+    if (!users.length) return { successCount: 0, failureCount: 0 };
 
     const tokens: string[] = [];
-    users.forEach(user => {
-        user.device?.forEach(d => {
+
+    for (const user of users) {
+        user.device?.forEach((d: any) => {
             if (d.token) tokens.push(d.token);
         });
-    });
+    }
 
     if (!tokens.length) return { successCount: 0, failureCount: 0 };
 
-    // Remove duplicate tokens
     const uniqueTokens = [...new Set(tokens)];
 
-    const message = {
-        notification: { title, body, image },
-        tokens: uniqueTokens
-    };
+    // chunk (FCM limit = 500)
+    const chunkSize = 500;
+    let successCount = 0;
+    let failureCount = 0;
+    const failedTokens: string[] = [];
 
-    const response = await firebaseAdmin.messaging().sendEachForMulticast(message);
+    for (let i = 0; i < uniqueTokens.length; i += chunkSize) {
+        const chunk = uniqueTokens.slice(i, i + chunkSize);
 
-    // Cleanup invalid tokens
-    if (response.failureCount > 0) {
-        const failedTokens: string[] = [];
+        const message = {
+            notification: { title, body, ...(image ? { image } : {}) },
+            tokens: chunk
+        };
+
+        const response = await firebaseAdmin.messaging().sendEachForMulticast(message);
+
+        successCount += response.successCount;
+        failureCount += response.failureCount;
 
         response.responses.forEach((res, index) => {
-            if (!res.success) failedTokens.push(uniqueTokens[index]);
+            if (!res.success) failedTokens.push(chunk[index]);
         });
-
-        if (failedTokens.length) {
-            await User.updateMany({ "device.token": { $in: failedTokens } }, { $pull: { device: { token: { $in: failedTokens } } } });
-        }
     }
 
-    return {
-        successCount: response.successCount,
-        failureCount: response.failureCount
-    };
+    // optimized cleanup
+    if (failedTokens.length) await User.updateMany({ "device.token": { $in: failedTokens } }, { $pull: { device: { token: { $in: failedTokens } } } });
+
+    return { successCount, failureCount };
 };

@@ -6,6 +6,7 @@ import sendResponse from "../../utils/sendResponse";
 import Order from "./order.model";
 import Product from "../product/product.model";
 import status from "http-status";
+import { sendPushNotification } from "../../utils/pushNotification";
 
 export const createOrder = catchAsync(async (req: Request, res: Response) => {
     const session = await mongoose.startSession();
@@ -134,13 +135,40 @@ export const cancelOrder = catchAsync(async (req: Request, res: Response) => {
 
 export const updateOrderStatus = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status: newStatus } = req.body;
 
-    const order = await Order.findById(id);
+    const allowedStatus = ["pending", "confirmed", "shipped", "delivered", "cancelled"];
+    if (!allowedStatus.includes(newStatus)) return sendResponse(res, status.BAD_REQUEST, "Invalid status");
+
+    // Find order + populate product (for image) & update status
+    const order = await Order.findById(id).populate("items.product", "name image").select("+user");
     if (!order) return sendResponse(res, status.NOT_FOUND, "Order not found");
-    order.status = status;
-
+    if (order.status === newStatus) return sendResponse(res, status.BAD_REQUEST, "Status already updated");
+    order.status = newStatus;
     await order.save();
 
-    return sendResponse(res, status.OK, "Status updated", null, order);
+    const userId = order.user?.toString();
+
+    // Product image (first item)
+    let image: string | undefined;
+    if (order.items?.length > 0) {
+        const firstProduct: any = order.items[0].product;
+        image = firstProduct?.image?.url;
+    }
+
+    // Status message
+    const statusMessageMap: Record<string, string> = {
+        pending: "Your order is pending.",
+        confirmed: "Your order has been confirmed ✅",
+        shipped: "Your order has been shipped 🚚",
+        delivered: "Your order has been delivered 🎉",
+        cancelled: "Your order has been cancelled ❌"
+    };
+
+    const message = statusMessageMap[newStatus] || "Your order status has been updated";
+
+    // Send push notification (non-blocking)
+    if (userId) sendPushNotification({ title: "📦 Order Update", body: message, image }, { userIds: [userId] }).catch(err => console.error("Push Notification Error:", err));
+
+    return sendResponse(res, status.OK, "Order status updated successfully", null, order);
 });

@@ -273,7 +273,7 @@ export const googleLogin = catchAsync(async (req: Request, res: Response) => {
             avatar: picture ? { url: picture } : undefined,
             isVerified: true,
             role: "user",
-            devices: fcmToken && platform ?
+            device: fcmToken && platform ?
                 [
                     {
                         token: fcmToken,

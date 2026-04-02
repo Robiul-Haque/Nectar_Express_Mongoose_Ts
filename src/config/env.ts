@@ -4,6 +4,7 @@ export const env = {
     PORT: process.env.PORT || 5000,
     DB_URL: process.env.DB_URL as string,
     NODE_ENV: process.env.NODE_ENV,
+    DASHBOARD_URL: process.env.DASHBOARD_URL as string,
     ADMIN_NAME: process.env.ADMIN_NAME as string,
     ADMIN_EMAIL: process.env.ADMIN_EMAIL as string,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD as string,

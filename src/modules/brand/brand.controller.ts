@@ -125,5 +125,6 @@ export const deleteBrand = catchAsync(async (req: Request, res: Response) => {
     }
 
     await Brand.deleteOne({ _id: id });
+    
     return sendResponse(res, status.OK, "Brand deleted permanently", null);
 });
