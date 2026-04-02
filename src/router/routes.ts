@@ -11,6 +11,7 @@ import orderRoute from "../modules/order/order.routes";
 import paymentRoute from "../modules/payment/payment.route";
 import notificationRoute from "../modules/notification/notification.route";
 import chatRouter from "../modules/chat/chat.router";
+import messageRoute from "../modules/message/message.route";
 import sliderRouter from "../modules/slider/slider.route";
 
 const router = Router();
@@ -27,6 +28,7 @@ router.use("/order", orderRoute);
 router.use("/payment", paymentRoute);
 router.use("/notification", notificationRoute);
 router.use("/chat", chatRouter);
+router.use("/message", messageRoute);
 router.use("/slider", sliderRouter);
 
 export default router;
