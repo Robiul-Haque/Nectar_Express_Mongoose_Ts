@@ -7,33 +7,33 @@ const sliderItemSchema = new Schema<ISliderItem & Document>(
             type: String,
             required: true,
             trim: true,
-            maxlength: 200
+            maxlength: 200,
         },
         description: {
             type: String,
             trim: true,
-            maxlength: 500
+            maxlength: 500,
         },
-        image: {
-            url: {
-                type: String,
-                required: true
-            },
-            publicId: {
-                type: String,
-                required: true
-            },
-        },
-        actionButton: {
-            text: {
-                type: String,
-                trim: true,
-                maxlength: 50
-            },
-            link: {
-                type: String,
-                trim: true
+        images: [
+            {
+                url: { 
+                    type: String, 
+                    required: true 
+                },
+                publicId: { type: String, 
+                    required: true 
+                }
             }
+        ],
+        actionButton: {
+            text: { 
+                type: String,
+                 trim: true, 
+                 maxlength: 50 },
+            link: { 
+                type: String,
+                 trim: true 
+                }
         },
         displayOrder: {
             type: Number,
@@ -59,4 +59,5 @@ const sliderItemSchema = new Schema<ISliderItem & Document>(
 sliderItemSchema.index({ displayOrder: 1 });
 sliderItemSchema.index({ isActive: 1, displayOrder: 1 });
 
-export const SliderItem = model<ISliderItem>("SliderItem", sliderItemSchema);
+const SliderItem = model<ISliderItem>("SliderItem", sliderItemSchema);
+export default SliderItem;

@@ -1,34 +1,41 @@
 import { Request, Response } from 'express';
 import catchAsync from '../../utils/catchAsync';
+import SliderItem from './slider.model';
+import status from 'http-status';
 import sendResponse from '../../utils/sendResponse';
 import { deleteImage, uploadImageStream } from '../../utils/cloudinary';
-import status from 'http-status';
-import { SliderItem } from './slider.model';
 
 export const createSliderItem = catchAsync(async (req: Request, res: Response) => {
-    if (!req.file) return sendResponse(res, status.BAD_REQUEST, 'Image file is required');
+    const files = req.files as Express.Multer.File[];
 
-    const uploadResult = await uploadImageStream(req.file.buffer, {
-        folder: 'sliders',
-        publicId: `slider-${Date.now()}`
-    });
+    if (!files || files.length === 0) return sendResponse(res, status.BAD_REQUEST, "At least one image is required");
 
-    // Get highest displayOrder for auto increment
-    const maxOrderResult = await SliderItem.findOne({}).sort({ displayOrder: -1 }).select('displayOrder').lean<{ displayOrder: number } | null>();
+    // Cloudinary upload
+    const uploadResults = await Promise.all(
+        files.map((file) =>
+            uploadImageStream(file.buffer, {
+                folder: "Nectar/Sliders",
+                publicId: `slider-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            })
+        )
+    );
 
-    const displayOrder = (maxOrderResult?.displayOrder ?? 0) + 1;
+    // Highest displayOrder
+    const maxOrder = await SliderItem.findOne().sort({ displayOrder: -1 }).select("displayOrder").lean<{ displayOrder?: number }>();
+    const displayOrder = (maxOrder?.displayOrder ?? 0) + 1;
+
+    // Check if any active slider exists
+    const activeSliderExists = await SliderItem.exists({ isActive: true });
 
     const newItem = await SliderItem.create({
-        title: req.body.title,
-        description: req.body.description,
-        actionButton: req.body.actionButton,
-        animationType: req.body.animationType || 'fade',
-        isActive: req.body.isActive ?? true,
-        image: {
-            url: uploadResult.secure_url,
-            publicId: uploadResult.public_id,
-        },
+        ...req.body,
+        images: uploadResults.map((img) => ({
+            url: img.secure_url,
+            publicId: img.public_id,
+        })),
         displayOrder,
+        // First slider auto-active, others inactive
+        isActive: activeSliderExists ? false : true,
     });
 
     return sendResponse(res, status.CREATED, "Slider item created successfully", null, newItem);
@@ -36,37 +43,51 @@ export const createSliderItem = catchAsync(async (req: Request, res: Response) =
 
 export const updateSliderItem = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
+    const files = req.files as Express.Multer.File[];
 
     const item = await SliderItem.findById(id);
-    if (!item) return sendResponse(res, status.BAD_REQUEST, 'Slider item not found');
+    if (!item) return sendResponse(res, status.BAD_REQUEST, "Slider item not found");
 
     const updateData: any = {};
 
-    // Only include fields that are actually sent (Partial Update)
+    // Partial update for text fields
     if (req.body.title !== undefined) updateData.title = req.body.title;
     if (req.body.description !== undefined) updateData.description = req.body.description;
     if (req.body.actionButton !== undefined) updateData.actionButton = req.body.actionButton;
     if (req.body.animationType !== undefined) updateData.animationType = req.body.animationType;
     if (req.body.isActive !== undefined) updateData.isActive = req.body.isActive;
 
-    // Handle Image Update
-    if (req.file) {
-        // Delete old image from Cloudinary (important for storage optimization)
-        await deleteImage(item.image.publicId);
+    // Handle new image uploads
+    if (files && files.length > 0) {
+        // Delete old images from Cloudinary
+        if (item.images && item.images.length > 0) {
+            for (const img of item.images) {
+                try {
+                    await deleteImage(img.publicId);
+                } catch (err) {
+                    console.error("[Cloudinary Delete Error]", err);
+                }
+            }
+        }
 
-        const uploadResult = await uploadImageStream(req.file.buffer, {
-            folder: 'sliders',
-            publicId: `slider-${Date.now()}`
-        });
+        // Upload new images
+        const uploadResults = await Promise.all(
+            files.map((file) =>
+                uploadImageStream(file.buffer, {
+                    folder: "Nectar/Sliders",
+                    publicId: `slider-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                })
+            )
+        );
 
-        updateData.image = {
-            url: uploadResult.secure_url,
-            publicId: uploadResult.public_id,
-        };
+        updateData.images = uploadResults.map((img) => ({
+            url: img.secure_url,
+            publicId: img.public_id,
+        }));
     }
 
     const updatedItem = await SliderItem.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).lean();
-    if (!updatedItem) return sendResponse(res, status.BAD_REQUEST, 'Failed to update slider item');
+    if (!updatedItem) return sendResponse(res, status.BAD_REQUEST, "Failed to update slider item");
 
     return sendResponse(res, status.OK, "Slider item updated successfully", null, updatedItem);
 });
@@ -77,8 +98,18 @@ export const deleteSliderItem = catchAsync(async (req: Request, res: Response) =
     const item = await SliderItem.findById(id);
     if (!item) return sendResponse(res, status.BAD_REQUEST, 'Slider item not found');
 
-    // Delete image from Cloudinary before deleting from DB
-    await deleteImage(item.image.publicId);
+    // Delete all images from Cloudinary
+    if (item.images && item.images.length > 0) {
+        for (const img of item.images) {
+            try {
+                await deleteImage(img.publicId);
+            } catch (err) {
+                console.error("[Cloudinary Delete Error]", err);
+            }
+        }
+    }
+
+    // Delete slider item from DB
     await SliderItem.findByIdAndDelete(id);
 
     return sendResponse(res, status.OK, "Slider item deleted successfully", null, null);
@@ -96,12 +127,11 @@ export const getSliderItems = catchAsync(async (req: Request, res: Response) => 
 });
 
 export const reorderSliderItems = catchAsync(async (req: Request, res: Response) => {
-    const { order } = req.body; // array of slider ids in new order
+    const { order } = req.body;
 
     if (!Array.isArray(order) || order.length === 0) return sendResponse(res, status.BAD_REQUEST, 'Order array is required and cannot be empty');
 
     const bulkOps = order.map((id, index) => ({ updateOne: { filter: { _id: id }, update: { displayOrder: index + 1 } } }));
-
     await SliderItem.bulkWrite(bulkOps);
 
     return sendResponse(res, status.OK, "Slider items reordered successfully", null, null);

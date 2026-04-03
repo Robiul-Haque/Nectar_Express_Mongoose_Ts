@@ -3,22 +3,23 @@ import mongoose from "mongoose";
 
 export const objectIdSchema = z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), { message: "Invalid ObjectId" });
 
-export const createSliderItemZodSchema = z.object({
-  title: z.string().min(1, "Title is required").max(200),
-  description: z.string().max(500).optional(),
-  actionButton: z.object({
-    text: z.string().min(1).max(50),
-    link: z.string().url("Invalid link URL")
-  })
-    .optional(),
-  animationType: z.enum(["fade", "slide", "zoom", "none"]).default("fade"),
-  isActive: z.boolean().default(true)
+const actionButtonSchema = z.object({
+  text: z.string().min(1).max(50),
+  link: z.string().url("Invalid link URL")
 });
 
-export const updateSliderItemZodSchema = createSliderItemZodSchema.partial();
+export const createSliderItemZodSchema = z.object({
+  body: z.object({
+    title: z.string().min(1).max(200).optional(),
+    description: z.string().max(500).optional(),
+    actionButton: actionButtonSchema.optional(),
+    animationType: z.enum(["fade", "slide", "zoom", "none"]).optional().default("fade"),
+    isActive: z.boolean().optional().default(true)
+  })
+});
 
-export const reorderSliderItemsZodSchema = z.object({
-  order: z.array(z.string()).min(1, "Order array is required")
+export const updateSliderItemZodSchema = z.object({
+  body: createSliderItemZodSchema.shape.body.partial()
 });
 
 export const getSliderItemsSchema = z.object({
@@ -28,8 +29,14 @@ export const getSliderItemsSchema = z.object({
   })
 });
 
+export const reorderSliderItemsZodSchema = z.object({
+  body: z.object({
+    order: z.array(objectIdSchema).min(1, "Order array cannot be empty").refine((arr) => new Set(arr).size === arr.length, { message: "Duplicate slider IDs are not allowed" })
+  }),
+});
+
 export const deleteSliderItemSchema = z.object({
   params: z.object({
     id: objectIdSchema
-  }),
+  })
 });

@@ -9,16 +9,13 @@ export interface IActionButton {
 }
 
 export interface ISliderItem {
-    _id: string;
     title: string;
     description?: string;
-    image: IImage;
-    actionButton?: IActionButton;
+    images: { url: string; publicId: string }[];
+    actionButton?: { text: string; link: string };
     displayOrder: number;
     animationType: "fade" | "slide" | "zoom" | "none";
     isActive: boolean;
-    createdAt: Date;
-    updatedAt: Date;
 }
 
 export type SliderItemResponse = ISliderItem;
