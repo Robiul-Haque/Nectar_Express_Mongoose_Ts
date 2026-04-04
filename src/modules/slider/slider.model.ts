@@ -1,39 +1,41 @@
 import { Schema, model, Document } from "mongoose";
-import { ISliderItem } from "./slider.interface";
+import { ISlider } from "./slider.interface";
 
-const sliderItemSchema = new Schema<ISliderItem & Document>(
+const sliderSchema = new Schema<ISlider & Document>(
     {
         title: {
             type: String,
             required: true,
             trim: true,
-            maxlength: 200,
+            maxlength: 200
         },
         description: {
             type: String,
             trim: true,
-            maxlength: 500,
+            maxlength: 500
         },
         images: [
             {
-                url: { 
-                    type: String, 
-                    required: true 
+                url: {
+                    type: String,
+                    required: true
                 },
-                publicId: { type: String, 
-                    required: true 
+                publicId: {
+                    type: String,
+                    required: true
                 }
             }
         ],
         actionButton: {
-            text: { 
+            text: {
                 type: String,
-                 trim: true, 
-                 maxlength: 50 },
-            link: { 
+                trim: true,
+                maxlength: 50
+            },
+            link: {
                 type: String,
-                 trim: true 
-                }
+                trim: true
+            }
         },
         displayOrder: {
             type: Number,
@@ -56,8 +58,8 @@ const sliderItemSchema = new Schema<ISliderItem & Document>(
     }
 );
 
-sliderItemSchema.index({ displayOrder: 1 });
-sliderItemSchema.index({ isActive: 1, displayOrder: 1 });
+sliderSchema.index({ displayOrder: 1 });
+sliderSchema.index({ isActive: 1, displayOrder: 1 });
 
-const SliderItem = model<ISliderItem>("SliderItem", sliderItemSchema);
-export default SliderItem;
+const Slider = model<ISlider>("Slider", sliderSchema);
+export default Slider;

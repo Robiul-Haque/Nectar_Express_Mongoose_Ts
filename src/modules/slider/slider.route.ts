@@ -1,20 +1,21 @@
 import { Router } from 'express';
 import authenticate from '../../middlewares/auth.middleware';
-import validateRequest from '../../middlewares/validateRequest';
-import { createSliderItemZodSchema, deleteSliderItemSchema, getSliderItemsSchema, reorderSliderItemsZodSchema, updateSliderItemZodSchema } from './slider.validation';
-import { createSliderItem, deleteSliderItem, getActiveSliderItems, getSliderItems, reorderSliderItems, updateSliderItem } from './slider.controller';
 import upload from '../../middlewares/upload.middleware';
+import validateRequest from '../../middlewares/validateRequest';
+import { createSliderZodSchema, deleteSliderImageSchema, deleteSliderSchema, getSliderSchema, reorderSliderZodSchema, updateSliderZodSchema } from './slider.validation';
+import { createSlider, deleteSlider, deleteSliderImage, getActiveSlider, getSlider, reorderSlider, updateSlider } from './slider.controller';
 
 const router = Router();
 
 // App Routes
-router.get("/sliders", getActiveSliderItems);
+router.get("/sliders", getActiveSlider);
 
 // Admin Routes
-router.post("/create", authenticate(["admin"]), upload.array("sliderImages", 10), validateRequest(createSliderItemZodSchema), createSliderItem);
-router.put("/:id", authenticate(["admin"]), upload.array("sliderImages", 10), validateRequest(updateSliderItemZodSchema), updateSliderItem);
-router.post("/reorder", authenticate(["admin"]), validateRequest(reorderSliderItemsZodSchema), reorderSliderItems);
-router.get("/", authenticate(["admin"]), validateRequest(getSliderItemsSchema), getSliderItems);
-router.delete("/:id", authenticate(["admin"]), validateRequest(deleteSliderItemSchema), deleteSliderItem);
+router.post("/", authenticate(["admin"]), upload.array("sliderImages", 10), validateRequest(createSliderZodSchema), createSlider);
+router.put("/:id", authenticate(["admin"]), upload.array("sliderImages", 10), validateRequest(updateSliderZodSchema), updateSlider);
+router.post("/reorder", authenticate(["admin"]), validateRequest(reorderSliderZodSchema), reorderSlider);
+router.get("/", authenticate(["admin"]), validateRequest(getSliderSchema), getSlider);
+router.delete("/:id", authenticate(["admin"]), validateRequest(deleteSliderSchema), deleteSlider);
+router.delete("/:sliderId/images/:imageId", authenticate(["admin"]), validateRequest(deleteSliderImageSchema), deleteSliderImage);
 
 export default router;
