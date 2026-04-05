@@ -1,25 +1,22 @@
-import { Types } from "mongoose";
-
 export interface IImage {
+    _id?: string;
     url: string;
     publicId: string;
+    displayOrder: number;
 }
 
 export interface IActionButton {
-    text: string;
-    link: string;
+    text?: string;
+    link?: string;
 }
 
 export interface ISlider {
+    _id?: string;
     title: string;
-    description?: string;
-    images: {
-        [x: string]: any; url: string; publicId: string 
-}[];
-    actionButton?: { text: string; link: string };
-    displayOrder: number;
-    animationType: "fade" | "slide" | "zoom" | "none";
-    isActive: boolean;
+    images: IImage[];
+    actionButton?: IActionButton;
+    animationType?: "fade" | "slide" | "zoom" | "none";
+    isActive?: boolean;
+    createdAt?: string;
+    updatedAt?: string;
 }
-
-export type SliderResponse = ISlider;

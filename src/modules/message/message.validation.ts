@@ -23,9 +23,7 @@ export const sendMessageSchema = z.object({
 });
 
 export const getMessagesSchema = z.object({
-    params: z.object({
-        chatId: objectIdSchema
-    }),
+    params: z.object({ chatId: objectIdSchema }),
     query: z.object({
         page: z.string().optional(),
         limit: z.string().optional()
@@ -33,13 +31,9 @@ export const getMessagesSchema = z.object({
 });
 
 export const deleteMessageSchema = z.object({
-    params: z.object({
-        messageId: objectIdSchema
-    })
+    params: z.object({ messageId: objectIdSchema })
 });
 
 export const markAsReadSchema = z.object({
-    params: z.object({
-        chatId: objectIdSchema,
-    })
+    params: z.object({ chatId: objectIdSchema })
 });

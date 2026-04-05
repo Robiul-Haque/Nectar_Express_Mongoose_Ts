@@ -1,10 +1,10 @@
+import catchAsync from "../../utils/catchAsync";
 import { Request, Response } from "express";
 import Chat from "./chat.model";
-import catchAsync from "../../utils/catchAsync";
-import sendResponse from "../../utils/sendResponse";
 import status from "http-status";
+import sendResponse from "../../utils/sendResponse";
 
-export const createOrGetChat = catchAsync(async (req: Request, res: Response) => {
+export const createChat = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user!.sub;
     const { receiverId } = req.body;
 
@@ -19,28 +19,20 @@ export const createOrGetChat = catchAsync(async (req: Request, res: Response) =>
 export const getMyChats = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user!.sub;
 
-    // page & limit query param
-    const page = Math.max(Number(req.query.page) || 1, 1);
-    const limit = Math.min(Number(req.query.limit) || 20, 100); // max 100
-
+    const page = Math.max(parseInt(req.query.page as string) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const skip = (page - 1) * limit;
 
-    // Chats query
     const [total, chats] = await Promise.all([
         Chat.countDocuments({ participants: userId }),
-        Chat.find({ participants: userId })
-            .populate("participants", "name email role")
-            .sort({ lastUpdated: -1 })
-            .skip(skip)
-            .limit(limit)
-    ]);
+        Chat.find({ participants: userId }).select("participants lastMessage lastUpdated").sort({ lastUpdated: -1 }).skip(skip).limit(limit).populate({ path: "participants", select: "name email role", options: { lean: true } }).lean()]);
+
+    const formattedChats = chats.map(chat => ({
+        ...chat,
+        participants: chat.participants.filter((p: any) => p._id.toString() !== userId)
+    }));
 
     const totalPages = Math.ceil(total / limit);
 
-    return sendResponse(res, status.OK, "Chats fetched", {
-        total,
-        page,
-        limit,
-        totalPages
-    }, chats);
+    return sendResponse(res, status.OK, "All chat fetch successfully", { total, page, limit, totalPages }, formattedChats);
 });

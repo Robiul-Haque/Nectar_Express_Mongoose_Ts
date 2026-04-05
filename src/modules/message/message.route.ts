@@ -7,9 +7,9 @@ import { deleteMessageAdmin, getChatMessages, markAsRead, sendMessage } from "./
 
 const router = express.Router();
 
-router.post("/send", authenticate, upload.single("image"), validateRequest(sendMessageSchema), sendMessage);
-router.get("/:chatId", authenticate, validateRequest(getMessagesSchema), getChatMessages);
-router.patch("/read/:chatId", authenticate, validateRequest(markAsReadSchema), markAsRead);
-router.delete("/:messageId", authenticate, validateRequest(deleteMessageSchema), deleteMessageAdmin);
+router.post("/send", authenticate(["user", "admin"]), upload.single("image"), validateRequest(sendMessageSchema), sendMessage);
+router.get("/:chatId", authenticate(["user", "admin"]), validateRequest(getMessagesSchema), getChatMessages);
+router.patch("/read/:chatId", authenticate(["user", "admin"]), validateRequest(markAsReadSchema), markAsRead);
+router.delete("/:messageId", authenticate(["user", "admin"]), validateRequest(deleteMessageSchema), deleteMessageAdmin);
 
 export default router;
