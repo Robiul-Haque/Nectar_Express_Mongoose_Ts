@@ -59,7 +59,7 @@ export const getChatMessages = catchAsync(async (req: Request, res: Response) =>
     const messages = await Message.find({ chatId }).populate("sender", "name email role").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit);
     const total = await Message.countDocuments({ chatId });
 
-    return sendResponse(res, status.OK, "Messages fetched", { pagination: { page, limit, total }, data: messages });
+    return sendResponse(res, status.OK, "Messages fetched", { page, limit, total }, { data: messages });
 });
 
 export const deleteMessageAdmin = catchAsync(async (req: Request, res: Response) => {
