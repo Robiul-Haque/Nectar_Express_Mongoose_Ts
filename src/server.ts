@@ -1,13 +1,13 @@
 import mongoose from 'mongoose';
-import app from './app';
 import { env } from './config/env';
 import logger from './utils/logger';
 import seedAdmin from './seeders/adminSeeder';
 import { verifySMTP } from './utils/sendOtpEmail';
+import { server } from './app';
 
 async function bootstrap() {
     // Start server instantly
-    const server = app.listen(env.PORT, () => logger.info(`🚀 Server running on port ${env.PORT}`));
+    const newServer = server.listen(env.PORT, () => logger.info(`🚀 Server running on port ${env.PORT}`));
 
     // DB connect (background)
     mongoose
@@ -30,7 +30,7 @@ async function bootstrap() {
     process.on('SIGTERM', async () => {
         logger.warn('SIGTERM received. Shutting down...');
         await mongoose.disconnect();
-        server.close();
+        newServer.close();
         process.exit(0);
     });
 }

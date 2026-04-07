@@ -53,4 +53,4 @@ app.use('/api/v1', router);
 app.use(notFound);
 app.use(errorHandler);
 
-export default app;
+export { app, server };
