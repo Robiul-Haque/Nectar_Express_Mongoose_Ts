@@ -18,7 +18,7 @@ const app = express();
 
 // Security
 app.use(helmet());
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+app.use(cors({ origin: ["http://localhost:5173", "http://localhost:3000"], credentials: true }));
 app.use(compression());
 
 app.use("/api/v1/payment/webhook", express.raw({ type: "application/json" }));
@@ -31,7 +31,7 @@ app.use(cookieParser());
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: env.DASHBOARD_URL || "http://localhost:5173",
+        origin: ["http://localhost:5173", "http://localhost:3000"],
         methods: ["GET", "POST"],
         credentials: true,
     },

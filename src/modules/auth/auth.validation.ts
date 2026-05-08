@@ -23,7 +23,7 @@ export const otpVerifySchema = z.object({
 export const emailLoginSchema = z.object({
     body: z.object({
         email: z.string({ message: "Email is required", }).trim().toLowerCase().email("Invalid email address"),
-        password: z.string({ message: "Password is required" }).min(1, "Password is required"),
+        password: z.string({ message: "Password is required" }).min(8, "Password is required"),
     })
         .strict()
 });
