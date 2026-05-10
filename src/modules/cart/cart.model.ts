@@ -34,8 +34,7 @@ const cartSchema = new Schema<ICart>(
             type: Schema.Types.ObjectId,
             ref: "User",
             required: [true, "User is required"],
-            unique: true,
-            index: true
+            unique: true
         },
         items: [cartItemSchema],
         totalPrice: {
@@ -61,8 +60,6 @@ cartSchema.pre("save", function () {
     this.totalQuantity = this.items.reduce((sum, item) => sum + item.quantity, 0);
     this.totalPrice = this.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
 });
-
-cartSchema.index({ user: 1 });
 
 const Cart: Model<ICart> = mongoose.model<ICart>("Cart", cartSchema);
 export default Cart;

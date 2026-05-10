@@ -34,8 +34,7 @@ const orderSchema = new Schema(
         user: {
             type: Types.ObjectId,
             ref: "User",
-            required: true,
-            index: true
+            required: true
         },
         items: {
             type: [orderItemSchema],

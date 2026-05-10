@@ -10,8 +10,15 @@ async function bootstrap() {
     const newServer = server.listen(env.PORT, () => logger.info(`🚀 Server running on port ${env.PORT}`));
 
     // DB connect (background)
+    const dbUrl = env.DB_URL;
+
+    if (!dbUrl) {
+        logger.error('❌ DB_URL is not defined');
+        process.exit(1);
+    }
+
     mongoose
-        .connect(env.DB_URL)
+        .connect(dbUrl)
         .then(async () => {
             logger.info('✅ DB connected');
             await seedAdmin();
