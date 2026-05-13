@@ -1,17 +1,31 @@
 #!/bin/bash
 
-cd /var/www/nectar-backend
+echo "================================="
+echo "🚀 Nectar Backend Deployment Start"
+echo "================================="
 
-echo "Pulling latest code..."
-git pull origin main
+APP_DIR="/var/www/nectar-backend"
+APP_NAME="nectar-backend"
 
-echo "Installing dependencies..."
-npm install
+echo "📂 Going to project directory..."
+cd $APP_DIR || exit
 
-echo "Building project..."
+echo "🔄 Pulling latest code from GitHub..."
+git fetch origin main
+git reset --hard origin/main
+
+echo "📦 Installing dependencies..."
+npm install --production
+
+echo "🏗 Building project..."
 npm run build
 
-echo "Restarting PM2..."
-pm2 restart nectar-backend
+echo "♻️ Reloading PM2 process..."
+pm2 reload $APP_NAME --update-env || pm2 start ecosystem.config.js
 
-echo "Deployment done!"
+echo "💾 Saving PM2 state..."
+pm2 save
+
+echo "================================="
+echo "✅ Deployment Successful!"
+echo "================================="
