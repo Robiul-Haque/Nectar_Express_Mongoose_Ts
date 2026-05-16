@@ -66,6 +66,7 @@ export const getAllProducts = catchAsync(async (_req: Request, res: Response) =>
 
 export const updateProduct = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
+    console.log("Controller working.......");
 
     const product = await Product.findById(id);
     if (!product) return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
@@ -90,6 +91,8 @@ export const updateProduct = catchAsync(async (req: Request, res: Response) => {
             publicId: uploadResult.public_id
         };
     }
+    console.log("Payload log: ", payload.isFeatured);
+
 
     const updatedProduct = await Product.findByIdAndUpdate(id, payload, { new: true, runValidators: true }).lean();
 
