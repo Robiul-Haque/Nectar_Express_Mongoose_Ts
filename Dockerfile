@@ -1,31 +1,13 @@
-# ---------- BUILD STAGE ----------
-FROM node:20-alpine AS build
+FROM node:20
 
 WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci
+RUN npm install
 
 COPY . .
 
-RUN npm run build
+EXPOSE 8010
 
-# ---------- PRODUCTION STAGE ----------
-FROM node:20-alpine
-
-WORKDIR /app
-
-ENV NODE_ENV=production
-
-COPY package*.json ./
-
-RUN npm ci --omit=dev
-
-COPY --from=build /app/dist ./dist
-
-COPY .env.example .env.example
-
-EXPOSE 8000
-
-CMD ["npm", "run", "start:prod"]
+CMD ["npm", "run", "dev"]

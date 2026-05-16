@@ -7,7 +7,7 @@ import { server } from './app';
 
 async function bootstrap() {
     // Start server instantly
-    const newServer = server.listen(env.PORT, () => logger.info(`🚀 Server running on port ${env.PORT}`));
+    const newServer = server.listen(env.PORT, () => console.log(`🚀 Server running on port ${env.PORT}`));
 
     // DB connect (background)
     const dbUrl = env.DB_URL;

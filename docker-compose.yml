@@ -1,15 +1,13 @@
-version: "3.8"
-
 services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
 
     container_name: nectar-api
 
     ports:
-      - "8000:8000"
+      - "8010:8010"
 
     env_file:
       - .env
@@ -20,26 +18,7 @@ services:
 
     command: npm run dev
 
-    restart: unless-stopped
-
-    depends_on:
-      - mongo
-
-  mongo:
-    image: mongo:7
-
-    container_name: nectar-mongo
+    stdin_open: true
+    tty: true
 
     restart: unless-stopped
-
-    ports:
-      - "27017:27017"
-
-    environment:
-      MONGO_INITDB_DATABASE: nectar
-
-    volumes:
-      - mongo-data:/data/db
-
-volumes:
-  mongo-data:

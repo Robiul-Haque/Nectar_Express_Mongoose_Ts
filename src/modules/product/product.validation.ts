@@ -49,7 +49,26 @@ export const updateProductSchema = z.object({
         category: objectIdSchema.optional(),
         brand: objectIdSchema.optional(),
         nutrition: z.string().max(1000).optional(),
-        isFeatured: z.coerce.boolean().optional(),
-        isActive: z.coerce.boolean().optional()
+        isFeatured: z.preprocess((val) => {
+            if (val === "true") return true;
+            if (val === "false") return false;
+            return val;
+        }, z.boolean().optional()),
+        isActive: z.preprocess((val) => {
+            if (val === "true") return true;
+            if (val === "false") return false;
+            return val;
+        }, z.boolean().optional())
     })
-})
+        .refine(
+            (data) => {
+                if (data.discountPrice === undefined) return true;
+                if (data.price === undefined) return true;
+                return data.discountPrice < data.price;
+            },
+            {
+                message: "Discount price must be less than price",
+                path: ["body", "discountPrice"]
+            }
+        )
+});

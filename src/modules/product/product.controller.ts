@@ -6,6 +6,7 @@ import Product from "./product.model";
 import { sendPushNotification, TPushPayload } from "../../utils/pushNotification";
 import sendResponse from "../../utils/sendResponse";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
+import logger from "../../utils/logger";
 
 export const createProduct = catchAsync(async (req: Request, res: Response) => {
     const payload: any = req.body;
@@ -66,35 +67,49 @@ export const getAllProducts = catchAsync(async (_req: Request, res: Response) =>
 
 export const updateProduct = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
-    console.log("Controller working.......");
 
     const product = await Product.findById(id);
-    if (!product) return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
+    if (!product) {
+        logger.warn(`Product not found: ${id}`);
+        return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
+    }
 
-    const payload: any = { ...req.body };
+    const payload: any = {};
 
-    // slug update
-    if (payload.name) payload.slug = slugify(payload.name, { lower: true, strict: true });
+    if (req.body.name) {
+        payload.name = req.body.name;
+        payload.slug = slugify(req.body.name, { lower: true, strict: true });
+    }
 
+    if (req.body.description) payload.description = req.body.description;
+    if (req.body.price !== undefined) payload.price = Number(req.body.price);
+    if (req.body.stock !== undefined) payload.stock = Number(req.body.stock);
+
+    // Normalize boolean again safety layer
+    const toBoolean = (val: any) => {
+        if (val === true || val === false) return val;
+        if (val === "true") return true;
+        if (val === "false") return false;
+        return undefined;
+    };
+
+    if (req.body.isFeatured !== undefined) payload.isFeatured = toBoolean(req.body.isFeatured);
+    if (req.body.isActive !== undefined) payload.isActive = toBoolean(req.body.isActive);
     if (req.file) {
-        // delete old image
         if (product.image?.publicId) await deleteImage(product.image.publicId);
 
-        // upload new image
         const uploadResult = await uploadImageStream(req.file.buffer, {
             folder: "Nectar/Products",
             publicId: `product-${Date.now()}`
         });
 
-        payload.images = {
+        payload.image = {
             url: uploadResult.secure_url,
             publicId: uploadResult.public_id
         };
     }
-    console.log("Payload log: ", payload.isFeatured);
 
-
-    const updatedProduct = await Product.findByIdAndUpdate(id, payload, { new: true, runValidators: true }).lean();
+    const updatedProduct = await Product.findByIdAndUpdate(id, { $set: payload }, { new: true, runValidators: true }).lean();
 
     return sendResponse(res, httpStatus.OK, "Product updated successfully", null, updatedProduct);
 });
