@@ -9,7 +9,7 @@ import Product from "../product/product.model";
 import sendResponse from "../../utils/sendResponse";
 import status from "http-status";
 
-export const stripeWebhook = catchAsync(async (req: Request, res: Response) => {
+export const stripeWebhookWithOrderComplete = catchAsync(async (req: Request, res: Response) => {
     const sig = req.headers["stripe-signature"] as string;
 
     let event;
@@ -19,6 +19,7 @@ export const stripeWebhook = catchAsync(async (req: Request, res: Response) => {
         console.error("Webhook signature error:", err.message);
         return sendResponse(res, status.BAD_REQUEST, "Invalid webhook signature", null, null);
     }
+    console.log("Event: ", event);
 
     // Only handle success event
     if (event.type !== "payment_intent.succeeded") return sendResponse(res, status.OK, "Event ignored", null, { received: true });

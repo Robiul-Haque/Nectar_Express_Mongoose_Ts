@@ -6,7 +6,7 @@ import { cancelOrder, createOrder, getAllOrders, getMyOrders, updateOrderStatus 
 
 const router = Router();
 
-router.post("/create", authenticate(["user"]), validateRequest(createOrderSchema), createOrder);
+// router.post("/create", authenticate(["user"]), validateRequest(createOrderSchema), createOrder);
 router.get("/my", authenticate(["user"]), getMyOrders);
 // router.get("/:id", authenticate(["user", "admin"]), getSingleOrder);
 router.patch("/cancel/:id", authenticate(["user"]), validateRequest(deleteOrderSchema), cancelOrder);

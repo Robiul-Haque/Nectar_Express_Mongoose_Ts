@@ -71,7 +71,7 @@ export const createOrder = catchAsync(async (req: Request, res: Response) => {
         await Cart.deleteOne({ user: userId }).session(session);
         await session.commitTransaction();
 
-        return sendResponse(res, status.CREATED, "Order confirmed", null, order);
+        return sendResponse(res, status.CREATED, "Order create successfully", null, order);
 
     } catch (error) {
         await session.abortTransaction();

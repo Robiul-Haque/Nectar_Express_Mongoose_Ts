@@ -10,6 +10,7 @@ import notFound from './middlewares/errorHandler.middleware';
 import errorHandler from './middlewares/errorHandler.middleware';
 import { globalRateLimiter } from './middlewares/rateLimiter.middleware';
 import sendResponse from './utils/sendResponse';
+import { stripeWebhookWithOrderComplete } from './modules/payment/payment.webhook';
 import status from 'http-status';
 import { env } from './config/env';
 import router from './router/routes';
@@ -21,7 +22,7 @@ app.use(helmet());
 app.use(cors({ origin: ["http://localhost:5173", "http://localhost:3000"], credentials: true }));
 app.use(compression());
 
-app.use("/api/v1/payment/webhook", express.raw({ type: "application/json" }));
+app.use("/api/v1/payment/webhook", express.raw({ type: "application/json" }), stripeWebhookWithOrderComplete);
 
 // Body
 app.use(express.json());

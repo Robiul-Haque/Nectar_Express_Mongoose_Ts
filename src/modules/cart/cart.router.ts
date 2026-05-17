@@ -11,6 +11,6 @@ router.patch("/items", authenticate(["user"]), validateRequest(cartBulkSchema), 
 
 // Admin routes
 router.get("/", authenticate(["user", "admin"]), validateRequest(getAllCartsSchema), getAllCarts);
-router.patch("/admin/cart-item/:id", authenticate(["admin"]), validateRequest(adminUpdateCartSchema), adminUpdateCartItem);
+router.patch("/admin/cart-item/:id", authenticate(["user", "admin"]), validateRequest(adminUpdateCartSchema), adminUpdateCartItem);
 
 export default router;
