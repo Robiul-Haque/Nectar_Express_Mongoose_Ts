@@ -11,21 +11,17 @@ interface SocketPayload extends JwtPayload {
     v?: number;
 }
 
-// ✅ Proper extended socket
 interface AuthenticatedSocket extends Socket {
     user?: SocketPayload;
 }
 
 export const initializeSocket = (io: Server) => {
-
-    // 🔐 AUTH MIDDLEWARE (ENABLE THIS)
     io.use((socket: AuthenticatedSocket, next) => {
         try {
             const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(" ")[1];
             if (!token) return next(new Error("Authentication token required"));
 
             const payload = jwt.verify(token, env.JWT_ACCESS_TOKEN) as SocketPayload;
-
             socket.user = payload;
             next();
         } catch (error) {
@@ -36,20 +32,17 @@ export const initializeSocket = (io: Server) => {
     io.on("connection", (socket: AuthenticatedSocket) => {
         const userId = socket.user?.sub;
         console.log(`✅ Socket Connected: ${socket.id} | User: ${userId}`);
+        if (userId) socket.join(userId);
 
-        // JOIN ROOM
         socket.on("joinRoom", ({ chatId }: { chatId: string }) => {
             if (!mongoose.Types.ObjectId.isValid(chatId)) return socket.emit("error", "Invalid chatId");
             console.log(`🔵 Join Room: ${chatId} | Socket: ${socket.id}`);
-
             socket.join(chatId);
         });
 
-        // SEND MESSAGE
         socket.on("sendMessage", async ({ chatId, content, type = "text" }: { chatId: string; content: string; type?: "text" | "image"; }) => {
             try {
                 if (!userId) return socket.emit("error", "Unauthorized");
-
                 if (!mongoose.Types.ObjectId.isValid(chatId)) return socket.emit("error", "Invalid chatId");
                 if (!content?.trim()) return socket.emit("error", "Message content required");
 
@@ -69,8 +62,10 @@ export const initializeSocket = (io: Server) => {
 
                 await Chat.updateOne({ _id: chatId }, { $push: { messages: message }, $set: { lastUpdated: new Date() }, });
 
-                io.to(chatId).emit("newMessage", { ...message, sender: userId });
-
+                io.to(chatId).emit("newMessage", {
+                    ...message,
+                    sender: userId,
+                });
             } catch (error) {
                 console.error("❌ sendMessage error:", error);
                 socket.emit("error", "Failed to send message");
@@ -78,11 +73,9 @@ export const initializeSocket = (io: Server) => {
         }
         );
 
-        // MARK AS READ
         socket.on("markAsRead", async (chatId: string) => {
             try {
                 if (!mongoose.Types.ObjectId.isValid(chatId)) return;
-
                 await Chat.updateOne({ _id: chatId }, { $set: { "messages.$[].read": true } });
                 io.to(chatId).emit("messagesRead", { chatId });
             } catch (error) {
@@ -90,9 +83,10 @@ export const initializeSocket = (io: Server) => {
             }
         });
 
-        // DISCONNECT
-        socket.on("disconnect", () => {
-            console.log(`🔴 Disconnected: ${socket.id} | User: ${userId}`);
+        socket.on("payment-listen", () => {
+            if (userId) socket.join(userId);
         });
+
+        socket.on("disconnect", () => console.log(`🔴 Disconnected: ${socket.id} | User: ${userId}`));
     });
 };
