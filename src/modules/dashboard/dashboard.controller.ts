@@ -83,12 +83,6 @@ import status from "http-status";
 export const getDashboardAnalytics = catchAsync(async (req: Request, res: Response) => {
     const now = new Date();
 
-    /*
-    |--------------------------------------------------------------------------
-    | DATE RANGES
-    |--------------------------------------------------------------------------
-    */
-
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -100,204 +94,156 @@ export const getDashboardAnalytics = catchAsync(async (req: Request, res: Respon
     monthlyStart.setDate(now.getDate() - 29);
     monthlyStart.setHours(0, 0, 0, 0);
 
-    /*
-    |--------------------------------------------------------------------------
-    | PARALLEL DB OPERATIONS
-    |--------------------------------------------------------------------------
-    */
 
-    const [
-        totalSalesResult,
-        dailyOrders,
-        newCustomers,
-        outOfStock,
-        weeklySales,
-        monthlySales,
-        popularProducts,
-    ] = await Promise.all([
+    const validOrderMatch = {
+        paymentStatus: { $in: ["paid", "Paid", "PAID"] },
+        status: { $nin: ["cancelled", "Cancelled"] }
+    };
 
-        /*
-        |--------------------------------------------------------------------------
-        | TOTAL SALES
-        |--------------------------------------------------------------------------
-        */
-
+    const [totalSalesResult, dailyOrders, newCustomers, outOfStock, weeklySalesRaw, monthlySalesRaw, popularProducts] = await Promise.all([
         Order.aggregate([
             {
-                $match: {
-                    status: { $ne: "cancelled" },
-                    paymentStatus: "paid",
-                },
+                $match: validOrderMatch
             },
             {
                 $group: {
                     _id: null,
-                    total: {
-                        $sum: "$totalPrice",
-                    },
-                },
-            },
+                    totalSales: { $sum: "$totalPrice" }
+                }
+            }
         ]),
 
-        /*
-        |--------------------------------------------------------------------------
-        | TODAY ORDERS
-        |--------------------------------------------------------------------------
-        */
-
         Order.countDocuments({
-            createdAt: {
-                $gte: todayStart,
-            },
-            status: {
-                $ne: "cancelled",
-            },
+            createdAt: { $gte: todayStart },
+            status: { $nin: ["cancelled", "Cancelled"] }
         }),
-
-        /*
-        |--------------------------------------------------------------------------
-        | NEW CUSTOMERS (LAST 30 DAYS)
-        |--------------------------------------------------------------------------
-        */
 
         User.countDocuments({
             role: "user",
-            createdAt: {
-                $gte: monthlyStart,
-            },
+            createdAt: { $gte: monthlyStart }
         }),
-
-        /*
-        |--------------------------------------------------------------------------
-        | OUT OF STOCK
-        |--------------------------------------------------------------------------
-        */
 
         Product.countDocuments({
             stock: {
-                $lte: 0,
+                $lte: 0
             },
-            isActive: true,
+            isActive: true
         }),
-
-        /*
-        |--------------------------------------------------------------------------
-        | WEEKLY SALES OVERVIEW
-        |--------------------------------------------------------------------------
-        */
 
         Order.aggregate([
             {
                 $match: {
-                    createdAt: {
-                        $gte: weeklyStart,
-                    },
-                    status: {
-                        $ne: "cancelled",
-                    },
-                    paymentStatus: "paid",
-                },
+                    ...validOrderMatch,
+                    createdAt: { $gte: weeklyStart }
+                }
             },
+
             {
                 $group: {
                     _id: {
-                        $dateToString: {
-                            format: "%a",
-                            date: "$createdAt",
-                        },
+                        $dayOfWeek: "$createdAt"
                     },
                     revenue: {
-                        $sum: "$totalPrice",
+                        $sum: "$totalPrice"
                     },
                     orders: {
-                        $sum: 1,
-                    },
-                },
+                        $sum: 1
+                    }
+                }
             },
+
+            {
+                $project: {
+                    _id: 0,
+                    dayNumber: "$_id",
+                    day: { $arrayElemAt: [["", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], "$_id"] },
+                    revenue: 1,
+                    orders: 1
+                }
+            },
+
             {
                 $sort: {
-                    _id: 1,
-                },
-            },
+                    dayNumber: 1
+                }
+            }
         ]),
-
-        /*
-        |--------------------------------------------------------------------------
-        | MONTHLY SALES OVERVIEW
-        |--------------------------------------------------------------------------
-        */
 
         Order.aggregate([
             {
                 $match: {
+                    ...validOrderMatch,
+
                     createdAt: {
-                        $gte: monthlyStart,
-                    },
-                    status: {
-                        $ne: "cancelled",
-                    },
-                    paymentStatus: "paid",
-                },
+                        $gte: monthlyStart
+                    }
+                }
             },
+
             {
                 $group: {
                     _id: {
                         $dateToString: {
                             format: "%Y-%m-%d",
-                            date: "$createdAt",
-                        },
+                            date: "$createdAt"
+                        }
                     },
+
                     revenue: {
-                        $sum: "$totalPrice",
+                        $sum: "$totalPrice"
                     },
+
                     orders: {
-                        $sum: 1,
-                    },
-                },
+                        $sum: 1
+                    }
+                }
             },
+
+            {
+                $project: {
+                    _id: 0,
+
+                    date: "$_id",
+
+                    revenue: 1,
+                    orders: 1
+                }
+            },
+
             {
                 $sort: {
-                    _id: 1,
-                },
-            },
+                    date: 1
+                }
+            }
         ]),
 
-        /*
-        |--------------------------------------------------------------------------
-        | POPULAR PRODUCTS
-        |--------------------------------------------------------------------------
-        */
-
         Order.aggregate([
-
             {
-                $match: {
-                    status: { $ne: "cancelled" },
-                },
+                $match: validOrderMatch
             },
 
             {
-                $unwind: "$products",
+                $unwind: "$items"
             },
 
             {
                 $group: {
-                    _id: "$products.product",
+                    _id: "$items.product",
 
                     totalSold: {
-                        $sum: "$products.quantity",
-                    },
-                },
+                        $sum: "$items.quantity"
+                    }
+                }
             },
 
             {
                 $sort: {
-                    totalSold: -1,
-                },
+                    totalSold: -1
+                }
             },
 
             {
-                $limit: 4,
+                $limit: 4
             },
 
             {
@@ -305,72 +251,43 @@ export const getDashboardAnalytics = catchAsync(async (req: Request, res: Respon
                     from: "products",
                     localField: "_id",
                     foreignField: "_id",
-                    as: "product",
-                },
+                    as: "product"
+                }
             },
 
             {
-                $unwind: "$product",
+                $unwind: "$product"
             },
 
             {
                 $project: {
                     _id: 0,
-
                     productId: "$product._id",
-
                     name: "$product.name",
-
                     slug: "$product.slug",
-
-                    image: {
-                        $arrayElemAt: [
-                            "$product.images.url",
-                            0,
-                        ],
-                    },
-
+                    image: "$product.image.url",
                     price: "$product.price",
-
-                    totalSold: 1,
-                },
-            },
-        ]),
+                    stock: "$product.stock",
+                    totalSold: 1
+                }
+            }
+        ])
     ]);
 
-    /*
-    |--------------------------------------------------------------------------
-    | FINAL RESPONSE
-    |--------------------------------------------------------------------------
-    */
-
     const responseData = {
-
         cards: {
-            totalSales:
-                totalSalesResult?.[0]?.total || 0,
-
+            totalSales: totalSalesResult?.[0]?.totalSales || 0,
             dailyOrders,
-
             newCustomers,
-
-            outOfStock,
+            outOfStock
         },
-
         salesOverview: {
-            weekly: weeklySales,
-            monthly: monthlySales,
+            weekly: weeklySalesRaw,
+            monthly: monthlySalesRaw
         },
-
-        popularProducts,
+        popularProducts
     };
 
-    return sendResponse(
-        res,
-        status.OK,
-        "Dashboard analytics retrieved successfully",
-        null,
-        responseData
-    );
+    return sendResponse(res, status.OK, "Dashboard analytics retrieved successfully", null, responseData);
 }
 );

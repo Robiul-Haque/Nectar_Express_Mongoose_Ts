@@ -77,7 +77,7 @@ const orderSchema = new Schema(
     }
 );
 
-orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ user: 1, createdAt: -1, paymentStatus: 1, status: 1 });
 
 const Order = model<IOrder>("Order", orderSchema);
 export default Order;
