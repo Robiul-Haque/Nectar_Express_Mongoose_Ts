@@ -1,6 +1,7 @@
 import catchAsync from "../../utils/catchAsync";
 import { Request, Response } from "express";
 import Category from "./category.model";
+import Product from "../product/product.model";
 import httpStatus from "http-status";
 import sendResponse from "../../utils/sendResponse";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
@@ -34,23 +35,85 @@ export const getAllCategories = catchAsync(async (req: Request, res: Response) =
     const { search, page = 1, limit = 10, active: isActive } = req.query;
 
     const filter: any = {};
-    if (search) filter.$text = { $search: search as string };
+    if (search) {
+        filter.$or = [
+            { name: { $regex: search, $options: "i" } },
+            { description: { $regex: search, $options: "i" } }
+        ];
+    }
     if (isActive !== undefined) filter.isActive = isActive === "true";
 
     const skip = (Number(page) - 1) * Number(limit);
+    const limitNum = Number(limit);
 
-    const [data, total] = await Promise.all([
-        Category.find(filter).sort({ sortOrder: 1, createdAt: -1 }).skip(skip).limit(Number(limit)).lean(),
-        Category.countDocuments(filter)
-    ]);
+    const pipeline: any[] = [
+        { $match: filter },
+        {
+            $lookup: {
+                from: "products",
+                let: { catId: "$_id" },
+                pipeline: [
+                    { $match: { $expr: { $eq: ["$category", "$$catId"] } } },
+                    { $count: "count" }
+                ],
+                as: "productCountInfo"
+            }
+        },
+        {
+            $addFields: {
+                productCount: { $ifNull: [{ $arrayElemAt: ["$productCountInfo.count", 0] }, 0] }
+            }
+        },
+        { $project: { productCountInfo: 0 } },
+        { $sort: { sortOrder: 1, createdAt: -1 } },
+        {
+            $facet: {
+                metadata: [{ $count: "total" }],
+                data: [{ $skip: skip }, { $limit: limitNum }]
+            }
+        }
+    ];
+
+    const result = await Category.aggregate(pipeline);
+    const data = result[0].data;
+    const total = result[0].metadata[0]?.total || 0;
 
     const pagination = {
         total,
         page: Number(page),
-        limit: Number(limit)
-    }
+        limit: limitNum
+    };
 
     return sendResponse(res, httpStatus.OK, "Categories retrieved successfully", pagination, data);
+});
+
+export const getCategoryStats = catchAsync(async (req: Request, res: Response) => {
+    const [totalCategories, activeProducts, stockInfo] = await Promise.all([
+        Category.countDocuments(),
+        Product.countDocuments({ isActive: true }),
+        Product.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    totalStock: { $sum: "$stock" },
+                    inStockItems: {
+                        $sum: { $cond: [{ $gt: ["$stock", 0] }, 1, 0] }
+                    },
+                    totalItems: { $sum: 1 }
+                }
+            }
+        ])
+    ]);
+
+    const stats = {
+        totalCategories,
+        activeItems: activeProducts,
+        stockHealth: stockInfo.length > 0 && stockInfo[0].totalItems > 0
+            ? Math.round((stockInfo[0].inStockItems / stockInfo[0].totalItems) * 100) 
+            : 0
+    };
+
+    return sendResponse(res, httpStatus.OK, "Category stats retrieved successfully", null, stats);
 });
 
 // export const getSingleCategory = catchAsync(async (req: Request, res: Response) => {

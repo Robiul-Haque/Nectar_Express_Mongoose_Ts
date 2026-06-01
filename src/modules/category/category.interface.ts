@@ -11,6 +11,7 @@ export interface ICategory {
     isActive: boolean;
     isFeatured: boolean;
     sortOrder: number;
+    productCount?: number;
     createdAt?: Date;
     updatedAt?: Date;
 }
