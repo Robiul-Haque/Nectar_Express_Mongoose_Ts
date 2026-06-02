@@ -9,6 +9,13 @@ const productSchema = new Schema<IProduct>(
             trim: true,
             maxlength: 150
         },
+        sku: {
+            type: String,
+            required: true,
+            unique: true,
+            trim: true,
+            index: true
+        },
         slug: {
             type: String,
             required: true,

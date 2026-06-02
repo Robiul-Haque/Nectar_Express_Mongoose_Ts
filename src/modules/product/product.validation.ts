@@ -6,6 +6,7 @@ const objectIdSchema = z.string().refine((val) => mongoose.Types.ObjectId.isVali
 export const createProductSchema = z.object({
     body: z.object({
         name: z.string().min(1).max(150),
+        sku: z.string().min(1).max(50),
         description: z.string().max(2000).optional(),
         measurement: z.object({
             value: z.coerce.number().min(0),
@@ -38,6 +39,7 @@ export const updateProductSchema = z.object({
     }),
     body: z.object({
         name: z.string().min(1).max(150).optional(),
+        sku: z.string().min(1).max(50).optional(),
         description: z.string().max(2000).optional(),
         measurement: z.object({
             value: z.coerce.number().min(0).optional(),

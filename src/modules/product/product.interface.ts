@@ -14,6 +14,7 @@ export interface IMeasurement {
 
 export interface IProduct {
     name: string;
+    sku: string;
     slug: string;
     description?: string;
     measurement: IMeasurement;
