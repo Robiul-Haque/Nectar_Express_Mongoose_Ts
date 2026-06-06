@@ -54,7 +54,7 @@ const orderSchema = new Schema(
             country: String,
             phone: String
         },
-        status: {
+        orderStatus: {
             type: String,
             enum: ["pending", "confirmed", "shipped", "delivered", "cancelled"],
             default: "pending",
@@ -77,7 +77,7 @@ const orderSchema = new Schema(
     }
 );
 
-orderSchema.index({ user: 1, createdAt: -1, paymentStatus: 1, status: 1 });
+orderSchema.index({ user: 1, createdAt: -1, paymentStatus: 1, orderStatus: 1 });
 
 const Order = model<IOrder>("Order", orderSchema);
 export default Order;

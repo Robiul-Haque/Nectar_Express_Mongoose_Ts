@@ -79,7 +79,7 @@ export const stripeWebhookWithOrderComplete = async (req: Request, res: Response
                     shippingAddress,
                     paymentStatus: "paid",
                     paymentIntentId: paymentIntent.id,
-                    status: "pending"
+                    orderStatus: "pending"
                 }], { session });
 
                 // STOCK UPDATE
@@ -107,7 +107,7 @@ export const stripeWebhookWithOrderComplete = async (req: Request, res: Response
                 }
 
                 order.paymentStatus = "paid";
-                order.status = "pending";
+                order.orderStatus = "pending";
                 order.paymentIntentId = paymentIntent.id;
                 await order.save({ session });
                 await Cart.deleteOne({ user: order.user }).session(session);
@@ -125,7 +125,7 @@ export const stripeWebhookWithOrderComplete = async (req: Request, res: Response
         // Refund safe fallback
         try {
             await stripe.refunds.create({ payment_intent: paymentIntent.id });
-            await Order.findByIdAndUpdate(orderId, { paymentStatus: "failed", status: "cancelled" });
+            await Order.findByIdAndUpdate(orderId, { paymentStatus: "failed", orderStatus: "cancelled" });
         } catch (refundErr) {
             console.error("❌ Refund failed:", refundErr);
         }

@@ -19,7 +19,7 @@ const app = express();
 
 // Security
 app.use(helmet());
-app.use(cors({ origin: ["http://localhost:5173", "http://localhost:3000"], credentials: true }));
+app.use(cors({ origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001"], credentials: true }));
 app.use(compression());
 
 app.use("/api/v1/payment/webhook", express.raw({ type: "application/json" }), stripeWebhookWithOrderComplete);

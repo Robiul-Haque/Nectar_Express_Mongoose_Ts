@@ -14,7 +14,7 @@ export const createReviewSchema = z.object({
 export const getProductReviewsSchema = z.object({
     query: z
         .object({
-            productId: objectIdSchema,
+            product: objectIdSchema,
             page: z.string().optional().transform((val) => (val ? Number(val) : 1)).refine((val) => !isNaN(val) && val > 0, { message: "Page must be a positive number" }),
             limit: z.string().optional().transform((val) => (val ? Number(val) : 10)).refine((val) => !isNaN(val) && val > 0 && val <= 100, { message: "Limit must be between 1 and 100" })
         })

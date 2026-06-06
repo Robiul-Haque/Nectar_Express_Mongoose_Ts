@@ -102,22 +102,90 @@ export const getSingleOrder = catchAsync(async (req: Request, res: Response) => 
 });
 
 export const getAllOrders = catchAsync(async (req: Request, res: Response) => {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+    const { search, orderStatus, page = 1, limit = 10 } = req.query;
 
-    const orders = await Order.find().populate("user", "name email").sort({ createdAt: -1 }).skip(skip).limit(limit).lean();
-    const total = await Order.countDocuments();
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const skip = (pageNum - 1) * limitNum;
 
-    return sendResponse(res, status.OK, "All orders", { total, page, limit }, orders);
+    const pipeline: any[] = [];
+
+    // Filter Match
+    const matchQuery: any = {};
+    if (orderStatus && orderStatus !== "All Orders") {
+        matchQuery.orderStatus = (orderStatus as string).toLowerCase();
+    }
+
+    if (search) {
+        matchQuery.$or = [
+            { _id: mongoose.Types.ObjectId.isValid(search as string) ? new mongoose.Types.ObjectId(search as string) : undefined },
+            { "shippingAddress.phone": { $regex: search, $options: "i" } }
+        ].filter(Boolean);
+    }
+
+    if (Object.keys(matchQuery).length > 0) pipeline.push({ $match: matchQuery });
+
+    // Sort
+    pipeline.push({ $sort: { createdAt: -1 } });
+
+    // Pagination and Data Shaping
+    pipeline.push({
+        $facet: {
+            metadata: [{ $count: "total" }],
+            data: [
+                { $skip: skip },
+                { $limit: limitNum },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "user",
+                        foreignField: "_id",
+                        as: "customerInfo"
+                    }
+                },
+                { $unwind: "$customerInfo" },
+                {
+                    $addFields: {
+                        customer: {
+                            name: "$customerInfo.name",
+                            email: "$customerInfo.email",
+                            initials: {
+                                $reduce: {
+                                    input: { $slice: [{ $split: ["$customerInfo.name", " "] }, 2] },
+                                    initialValue: "",
+                                    in: { $concat: ["$$value", { $substr: ["$$this", 0, 1] }] }
+                                }
+                            }
+                        },
+                        itemsCount: { $size: "$items" },
+                        orderId: "$_id"
+                    }
+                },
+                { $project: { customerInfo: 0 } }
+            ]
+        }
+    });
+
+    const result = await Order.aggregate(pipeline);
+    const data = result[0].data;
+    const total = result[0].metadata[0]?.total || 0;
+
+    const pagination = {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
+    };
+
+    return sendResponse(res, status.OK, "Orders retrieved successfully", pagination, data);
 });
 
 export const cancelOrder = catchAsync(async (req: Request, res: Response) => {
     const order = await Order.findById(req.params.id);
     if (!order) return sendResponse(res, status.NOT_FOUND, "Order not found");
 
-    if (order.status !== "pending") return sendResponse(res, status.BAD_REQUEST, "Order cannot be cancelled");
-    order.status = "cancelled";
+    if (order.orderStatus !== "pending") return sendResponse(res, status.BAD_REQUEST, "Order cannot be cancelled");
+    order.orderStatus = "cancelled";
 
     await Product.bulkWrite(
         order.items.map((i) => ({
@@ -135,7 +203,7 @@ export const cancelOrder = catchAsync(async (req: Request, res: Response) => {
 
 export const updateOrderStatus = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { status: newStatus } = req.body;
+    const { orderStatus: newStatus } = req.body;
 
     const allowedStatus = ["pending", "confirmed", "shipped", "delivered", "cancelled"];
     if (!allowedStatus.includes(newStatus)) return sendResponse(res, status.BAD_REQUEST, "Invalid status");
@@ -143,8 +211,8 @@ export const updateOrderStatus = catchAsync(async (req: Request, res: Response) 
     // Find order + populate product (for image) & update status
     const order = await Order.findById(id).populate("items.product", "name image").select("+user");
     if (!order) return sendResponse(res, status.NOT_FOUND, "Order not found");
-    if (order.status === newStatus) return sendResponse(res, status.BAD_REQUEST, "Status already updated");
-    order.status = newStatus;
+    if (order.orderStatus === newStatus) return sendResponse(res, status.BAD_REQUEST, "Status already updated");
+    order.orderStatus = newStatus;
     await order.save();
 
     const userId = order.user?.toString();

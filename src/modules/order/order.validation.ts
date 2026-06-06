@@ -18,14 +18,16 @@ export const createOrderSchema = z.object({
 export const getAllOrderSchema = z.object({
     query: z.object({
         page: z.string().optional().transform((val) => (val ? parseInt(val) : 1)),
-        limit: z.string().optional().transform((val) => (val ? parseInt(val) : 10))
+        limit: z.string().optional().transform((val) => (val ? parseInt(val) : 10)),
+        search: z.string().optional(),
+        orderStatus: z.enum(["pending", "confirmed", "shipped", "delivered", "cancelled", "All Orders"]).optional()
     })
 });
 
 export const updateStatusSchema = z.object({
     params: z.object({ id: objectId }),
     body: z.object({
-        status: z.enum(["confirmed", "shipped", "delivered", "cancelled"])
+        orderStatus: z.enum(["pending", "confirmed", "shipped", "delivered", "cancelled"])
     })
 });
 

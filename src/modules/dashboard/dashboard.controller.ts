@@ -6,80 +6,6 @@ import Product from "../product/product.model";
 import sendResponse from "../../utils/sendResponse";
 import status from "http-status";
 
-// export const getSalesOverview = catchAsync(async (req: Request, res: Response) => {
-//     const { range = "weekly" } = req.query;
-//     const now = new Date();
-//     let startDate: Date;
-//     let groupBy: any;
-
-//     if (range === "weekly") {
-//         // Last 7 days
-//         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-//         startDate.setHours(0, 0, 0, 0);
-//         groupBy = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
-//     } else if (range === "monthly") {
-//         // Last 30 days
-//         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-//         startDate.setHours(0, 0, 0, 0);
-//         groupBy = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
-//     } else if (range === "last6months") {
-//         // Last 6 months
-//         startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-//         startDate.setHours(0, 0, 0, 0);
-//         groupBy = { $dateToString: { format: "%Y-%m", date: "$createdAt" } };
-//     } else if (range === "yearly") {
-//         // Last 12 months
-//         startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-//         startDate.setHours(0, 0, 0, 0);
-//         groupBy = { $dateToString: { format: "%Y-%m", date: "$createdAt" } };
-//     } else {
-//         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-//         startDate.setHours(0, 0, 0, 0);
-//         groupBy = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
-//     }
-
-//     const salesData = await Order.aggregate([
-//         {
-//             $match: {
-//                 createdAt: { $gte: startDate },
-//                 status: { $ne: "cancelled" },
-//                 paymentStatus: "paid"
-//             }
-//         },
-//         {
-//             $group: {
-//                 _id: groupBy,
-//                 totalSales: { $sum: "$totalPrice" },
-//                 orderCount: { $sum: 1 }
-//             }
-//         },
-//         { $sort: { _id: 1 } }
-//     ]);
-
-//     return sendResponse(res, status.OK, "Sales overview retrieved successfully", null, salesData);
-// });
-
-// export const getDashboardStats = catchAsync(async (req: Request, res: Response) => {
-//     const totalOrders = await Order.countDocuments({ status: { $ne: "cancelled" } });
-//     const newUsers = await User.countDocuments({ role: "user" });
-//     const totalProducts = await Product.countDocuments({ isActive: true });
-
-//     const totalSalesResult = await Order.aggregate([
-//         { $match: { status: { $ne: "cancelled" }, paymentStatus: "paid" } },
-//         { $group: { _id: null, total: { $sum: "$totalPrice" } } }
-//     ]);
-
-//     const stats = {
-//         totalOrders,
-//         newUsers,
-//         totalProducts,
-//         totalSales: totalSalesResult.length > 0 ? totalSalesResult[0].total : 0,
-//     };
-
-//     return sendResponse(res, status.OK, "Dashboard stats retrieved successfully", null, stats);
-// });
-
-
 export const getDashboardAnalytics = catchAsync(async (req: Request, res: Response) => {
     const now = new Date();
 
@@ -97,7 +23,7 @@ export const getDashboardAnalytics = catchAsync(async (req: Request, res: Respon
 
     const validOrderMatch = {
         paymentStatus: { $in: ["paid", "Paid", "PAID"] },
-        status: { $nin: ["cancelled", "Cancelled"] }
+        orderStatus: { $nin: ["cancelled", "Cancelled"] }
     };
 
     const [totalSalesResult, dailyOrders, newCustomers, outOfStock, weeklySalesRaw, monthlySalesRaw, popularProducts] = await Promise.all([
@@ -115,7 +41,7 @@ export const getDashboardAnalytics = catchAsync(async (req: Request, res: Respon
 
         Order.countDocuments({
             createdAt: { $gte: todayStart },
-            status: { $nin: ["cancelled", "Cancelled"] }
+            orderStatus: { $nin: ["cancelled", "Cancelled"] }
         }),
 
         User.countDocuments({
