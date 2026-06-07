@@ -7,8 +7,7 @@ import { createReviewSchema, deleteReviewSchema, getProductReviewsSchema, update
 const router = Router();
 
 router.post("/create", authenticate(["user"]), validateRequest(createReviewSchema), createReview);
-router.get("/", authenticate(["user"]), validateRequest(getProductReviewsSchema), getProductReviews);
-// router.get("/:id", authenticate(["admin"]), getSingleReview);
+router.get("/", authenticate(["user", "admin"]), validateRequest(getProductReviewsSchema), getProductReviews);
 router.patch("/update", authenticate(["user", "admin"]), validateRequest(updateReviewSchema), updateReview);
 router.delete("/:id", authenticate(["admin"]), validateRequest(deleteReviewSchema), deleteReview);
 
