@@ -103,3 +103,67 @@ export const getProfile = catchAsync(async (req: Request, res: Response) => {
 
     return sendResponse(res, status.OK, "Profile retrieved successfully", null, user);
 });
+
+export const getAllUsers = catchAsync(async (req: Request, res: Response) => {
+    const { search, isActive, page = 1, limit = 10 } = req.query;
+
+    // Filter to exclude admins
+    const filter: any = { role: { $ne: "admin" } };
+
+    // Search by name or email
+    if (search) {
+        filter.$or = [
+            { name: { $regex: search, $options: "i" } },
+            { email: { $regex: search, $options: "i" } }
+        ];
+    }
+
+    // Filter by active status if provided
+    if (isActive !== undefined) {
+        filter.isActive = isActive === "true";
+    }
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const limitNum = Number(limit);
+
+    // Optimized parallel execution for data and total count
+    const [users, total] = await Promise.all([
+        User.find(filter)
+            .select("name email avatar role isActive isVerified location notificationEnabled provider createdAt")
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .lean(),
+        User.countDocuments(filter)
+    ]);
+
+    const pagination = {
+        total,
+        page: Number(page),
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum)
+    };
+
+    return sendResponse(res, status.OK, "Users retrieved successfully", pagination, users);
+});
+
+/**
+ * @desc Toggle user active status (Block/Unblock)
+ * @route PATCH /api/users/toggle-status/:id
+ * @access Private (Admin)
+ */
+export const toggleUserStatus = catchAsync(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+        id,
+        { $set: { isActive } },
+        { new: true, runValidators: true, projection: "name email isActive" }
+    ).lean();
+
+    if (!user) return sendResponse(res, status.NOT_FOUND, "User not found");
+
+    const message = isActive ? "User account unblocked successfully" : "User account blocked successfully";
+    return sendResponse(res, status.OK, message, null, user);
+});

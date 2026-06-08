@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { getLocation, getProfile, updateLocation, updateProfile } from "./user.controller";
+import { getAllUsers, getLocation, getProfile, toggleUserStatus, updateLocation, updateProfile } from "./user.controller";
 import authenticate from "../../middlewares/auth.middleware";
 import upload from "../../middlewares/upload.middleware";
 import validateRequest from "../../middlewares/validateRequest";
-import { locationSchema, updateProfileSchema } from "./user.validation";
+import { locationSchema, toggleUserStatusSchema, updateProfileSchema } from "./user.validation";
 
 const router = Router();
 
@@ -13,5 +13,7 @@ router.patch("/profile-update", authenticate(["user"]), validateRequest(updatePr
 router.get("/profile", authenticate(["user"]), getProfile);
 
 // Admin routes
+router.get("/all-users", authenticate(["admin"]), getAllUsers);
+router.patch("/toggle-status/:id", authenticate(["admin"]), validateRequest(toggleUserStatusSchema), toggleUserStatus);
 
 export default router;

@@ -1,4 +1,4 @@
-import z from "zod";
+import { z } from "zod";
 
 export const locationSchema = z.object({
     body: z.object({
@@ -15,4 +15,13 @@ export const locationSchema = z.object({
 
 export const updateProfileSchema = z.object({
     name: z.string().trim().min(2, "Name must be at least 2 characters").max(30, "Name cannot exceed 30 characters").optional()
+});
+
+export const toggleUserStatusSchema = z.object({
+    params: z.object({
+        id: z.string({ message: "User ID is required" }).regex(/^[0-9a-fA-F]{24}$/, "Invalid User ID format")
+    }),
+    body: z.object({
+        isActive: z.boolean({ message: "isActive status is required" })
+    })
 });
