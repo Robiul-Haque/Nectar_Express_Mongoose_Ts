@@ -13,7 +13,7 @@ router.patch("/profile-update", authenticate(["user"]), validateRequest(updatePr
 router.get("/profile", authenticate(["user"]), getProfile);
 
 // Admin routes
-router.get("/all-users", authenticate(["admin"]), getAllUsers);
+router.get("/all", authenticate(["admin"]), getAllUsers);
 router.patch("/toggle-status/:id", authenticate(["admin"]), validateRequest(toggleUserStatusSchema), toggleUserStatus);
 
 export default router;
