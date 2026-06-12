@@ -37,10 +37,25 @@ export const sendMessage = catchAsync(async (req: Request, res: Response) => {
 
     await Chat.findByIdAndUpdate(chatId, { lastMessage: message.content, lastUpdated: new Date() });
 
-    const io = req.app.get("io");
-    io?.to(chatId).emit("newMessage", message);
+    // Populate sender with user data
+    const populatedMessage = await message.populate({
+        path: "sender",
+        select: "name email role avatar"
+    });
 
-    return sendResponse(res, status.OK, "Message sent", null, message);
+    // Transform avatar to only URL
+    const transformedMessage = {
+        ...populatedMessage.toObject(),
+        sender: {
+            ...populatedMessage.sender,
+            avatar: (populatedMessage.sender as any).avatar?.url || null
+        }
+    };
+
+    const io = req.app.get("io");
+    io?.to(chatId).emit("newMessage", transformedMessage);
+
+    return sendResponse(res, status.OK, "Message sent", null, transformedMessage);
 });
 
 
@@ -56,10 +71,22 @@ export const getChatMessages = catchAsync(async (req: Request, res: Response) =>
 
     if (!chat.participants.includes(userId as any)) return sendResponse(res, status.FORBIDDEN, "Unauthorized");
 
-    const messages = await Message.find({ chatId }).populate("sender", "name email role").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit);
+    const messages = await Message.find({ chatId }).populate("sender", "name email role avatar").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit);
     const total = await Message.countDocuments({ chatId });
 
-    return sendResponse(res, status.OK, "Messages fetched", { page, limit, total }, { data: messages });
+    // Transform messages to only return avatar URL
+    const transformedMessages = messages.map(msg => {
+        const msgObj = msg.toObject();
+        return {
+            ...msgObj,
+            sender: {
+                ...msgObj.sender,
+                avatar: (msgObj.sender as any).avatar?.url || null
+            }
+        };
+    });
+
+    return sendResponse(res, status.OK, "Messages fetched", { page, limit, total }, { data: transformedMessages });
 });
 
 export const deleteMessageAdmin = catchAsync(async (req: Request, res: Response) => {

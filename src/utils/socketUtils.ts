@@ -3,6 +3,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import mongoose from "mongoose";
 import { env } from "../config/env";
 import Chat from "../modules/chat/chat.model";
+import Message from "../modules/message/message.model";
 
 interface SocketPayload extends JwtPayload {
     sub: string;
@@ -44,7 +45,7 @@ export const initializeSocket = (io: Server) => {
             try {
                 if (!userId) return socket.emit("error", "Unauthorized");
                 if (!mongoose.Types.ObjectId.isValid(chatId)) return socket.emit("error", "Invalid chatId");
-                if (!content?.trim()) return socket.emit("error", "Message content required");
+                if (type === "text" && !content?.trim()) return socket.emit("error", "Message content required");
 
                 const chat = await Chat.findById(chatId).select("participants").exec();
                 if (!chat) return socket.emit("error", "Chat not found");
@@ -52,32 +53,53 @@ export const initializeSocket = (io: Server) => {
                 const isParticipant = chat.participants.some((p: any) => p.toString() === userId);
                 if (!isParticipant) return socket.emit("error", "Unauthorized");
 
-                const message = {
-                    sender: new mongoose.Types.ObjectId(userId),
-                    content: content.trim(),
+                // Create message in DB
+                const message = await Message.create({
+                    chatId,
+                    sender: userId,
+                    content: type === "text" ? content.trim() : "📷 Image",
                     type,
-                    timestamp: new Date(),
-                    read: false,
+                    readBy: [userId]
+                });
+
+                // Update chat
+                await Chat.findByIdAndUpdate(chatId, { 
+                    lastMessage: message.content, 
+                    lastUpdated: new Date() 
+                });
+
+                // Populate sender for socket event
+                const populatedMessage = await message.populate({
+                    path: "sender",
+                    select: "name email role avatar"
+                });
+
+                // Transform avatar to only URL
+                const transformedMessage = {
+                    ...populatedMessage.toObject(),
+                    sender: {
+                        ...populatedMessage.sender,
+                        avatar: (populatedMessage.sender as any).avatar?.url || null
+                    }
                 };
 
-                await Chat.updateOne({ _id: chatId }, { $push: { messages: message }, $set: { lastUpdated: new Date() }, });
-
-                io.to(chatId).emit("newMessage", {
-                    ...message,
-                    sender: userId,
-                });
+                io.to(chatId).emit("newMessage", transformedMessage);
             } catch (error) {
                 console.error("❌ sendMessage error:", error);
                 socket.emit("error", "Failed to send message");
             }
-        }
-        );
+        });
 
         socket.on("markAsRead", async (chatId: string) => {
             try {
-                if (!mongoose.Types.ObjectId.isValid(chatId)) return;
-                await Chat.updateOne({ _id: chatId }, { $set: { "messages.$[].read": true } });
-                io.to(chatId).emit("messagesRead", { chatId });
+                if (!userId || !mongoose.Types.ObjectId.isValid(chatId)) return;
+                
+                await Message.updateMany(
+                    { chatId, readBy: { $ne: userId } }, 
+                    { $addToSet: { readBy: userId } }
+                );
+                
+                io.to(chatId).emit("messagesRead", { chatId, userId });
             } catch (error) {
                 console.error("❌ markAsRead error:", error);
             }
