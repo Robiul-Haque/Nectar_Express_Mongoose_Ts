@@ -7,7 +7,7 @@ import { createSlider, updateSlider, deleteSlider, deleteSliderImage, getActiveS
 
 const router = Router();
 
-router.get("/active-slider", authenticate(["user"]), getActiveSlider);
+router.get("/active-slider", getActiveSlider);
 
 // Admin Routes
 router.post("/admin", authenticate(["admin"]), upload.array("sliderImages", 10), validateRequest(createSliderZodSchema), createSlider);
