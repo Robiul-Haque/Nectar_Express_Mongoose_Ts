@@ -4,10 +4,11 @@ import mongoose from "mongoose";
 import { env } from "../config/env";
 import Chat from "../modules/chat/chat.model";
 import Message from "../modules/message/message.model";
+import { registerTrackingHandlers } from "../modules/tracking/tracking.socket";
 
 interface SocketPayload extends JwtPayload {
     sub: string;
-    role: "user" | "admin";
+    role: "user" | "admin" | "driver";
     provider?: string;
     v?: number;
 }
@@ -108,6 +109,9 @@ export const initializeSocket = (io: Server) => {
         socket.on("payment-listen", () => {
             if (userId) socket.join(userId);
         });
+
+        // Register new tracking real-time handlers
+        registerTrackingHandlers(io, socket);
 
         socket.on("disconnect", () => console.log(`🔴 Disconnected: ${socket.id} | User: ${userId}`));
     });

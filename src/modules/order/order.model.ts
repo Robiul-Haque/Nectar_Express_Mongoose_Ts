@@ -36,6 +36,11 @@ const orderSchema = new Schema(
             ref: "User",
             required: true
         },
+        driver: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+            index: true
+        },
         items: {
             type: [orderItemSchema],
             required: true

@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import Redis from "ioredis";
 import { initializeSocket } from './utils/socketUtils';
 import notFound from './middlewares/errorHandler.middleware';
 import errorHandler from './middlewares/errorHandler.middleware';
@@ -37,6 +39,13 @@ const io = new Server(server, {
         credentials: true,
     },
 });
+
+// Scale Socket.IO using Redis Adapter across CPU cluster workers
+if (env.REDIS_URL) {
+    const pubClient = new Redis(env.REDIS_URL);
+    const subClient = pubClient.duplicate();
+    io.adapter(createAdapter(pubClient, subClient));
+}
 
 // Attach io to app for access in controllers & initialize socket events
 app.set("io", io);

@@ -64,7 +64,7 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
         },
         role: {
             type: String,
-            enum: ["user", "admin"],
+            enum: ["user", "admin", "driver"],
             default: "user",
             index: true
         },

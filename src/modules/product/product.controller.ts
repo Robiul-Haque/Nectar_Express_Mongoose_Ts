@@ -7,6 +7,7 @@ import { sendPushNotification, TPushPayload } from "../../utils/pushNotification
 import sendResponse from "../../utils/sendResponse";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
 import logger from "../../utils/logger";
+import { deletePattern } from "../../utils/redis";
 
 export const createProduct = catchAsync(async (req: Request, res: Response) => {
     const payload: any = req.body;
@@ -33,6 +34,9 @@ export const createProduct = catchAsync(async (req: Request, res: Response) => {
     }
 
     const product = await Product.create(payload);
+
+    // Invalidate product caches (list and detail views)
+    await deletePattern("cache:/api/v1/product*");
 
     const pushPayload: TPushPayload = {
         title: "🆕 New Product Available!",
@@ -94,7 +98,7 @@ export const getAdminProducts = catchAsync(async (req: Request, res: Response) =
 
     const query: any = {};
     
-    // Search by Name, SKU or Category (using lookup/aggregation if needed, but for now name/sku is fine)
+    // Search by Name, SKU or Category
     if (search) {
         query.$or = [
             { name: { $regex: search, $options: "i" } },
@@ -178,18 +182,20 @@ export const getProductStats = catchAsync(async (_req: Request, res: Response) =
     return sendResponse(res, httpStatus.OK, "Product stats retrieved successfully", null, formattedStats);
 });
 
-// export const getSingleProduct = catchAsync(async (req, res) => {
-//     const product = await Product.findById(req.params.id)
-//         .populate("category", "name")
-//         .populate("brand", "name")
-//         .lean();
+export const getSingleProduct = catchAsync(async (req: Request, res: Response) => {
+    const { id } = req.params;
 
-//     if (!product) {
-//         return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
-//     }
+    const product = await Product.findById(id)
+        .populate("category", "name")
+        .populate("brand", "name")
+        .lean();
 
-//     return sendResponse(res, httpStatus.OK, "Product retrieved successfully", null, product);
-// });
+    if (!product) {
+        return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
+    }
+
+    return sendResponse(res, httpStatus.OK, "Product retrieved successfully", null, product);
+});
 
 export const updateProduct = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
@@ -238,6 +244,9 @@ export const updateProduct = catchAsync(async (req: Request, res: Response) => {
 
     const updatedProduct = await Product.findByIdAndUpdate(id, { $set: payload }, { new: true, runValidators: true }).lean();
 
+    // Invalidate product caches (list and detail views)
+    await deletePattern("cache:/api/v1/product*");
+
     return sendResponse(res, httpStatus.OK, "Product updated successfully", null, updatedProduct);
 });
 
@@ -246,6 +255,9 @@ export const deleteProduct = catchAsync(async (req: Request, res: Response) => {
 
     const deleted = await Product.findByIdAndDelete(id).lean();
     if (!deleted) return sendResponse(res, httpStatus.NOT_FOUND, "Product not found");
+
+    // Invalidate product caches (list and detail views)
+    await deletePattern("cache:/api/v1/product*");
 
     return sendResponse(res, httpStatus.OK, "Product deleted successfully");
 });

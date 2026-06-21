@@ -22,3 +22,12 @@ services:
     tty: true
 
     restart: unless-stopped
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    container_name: nectar-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped

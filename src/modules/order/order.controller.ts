@@ -181,24 +181,53 @@ export const getAllOrders = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const cancelOrder = catchAsync(async (req: Request, res: Response) => {
-    const order = await Order.findById(req.params.id);
-    if (!order) return sendResponse(res, status.NOT_FOUND, "Order not found");
+    const userId = req.user!.sub;
+    const userRole = req.user!.role;
 
-    if (order.orderStatus !== "pending") return sendResponse(res, status.BAD_REQUEST, "Order cannot be cancelled");
-    order.orderStatus = "cancelled";
+    const session = await mongoose.startSession();
+    try {
+        session.startTransaction();
 
-    await Product.bulkWrite(
-        order.items.map((i) => ({
-            updateOne: {
-                filter: { _id: i.product },
-                update: { $inc: { stock: i.quantity } }
-            }
-        }))
-    );
+        const order = await Order.findById(req.params.id).session(session);
+        if (!order) {
+            await session.abortTransaction();
+            return sendResponse(res, status.NOT_FOUND, "Order not found");
+        }
 
-    await order.save();
+        // BOLA / IDOR ownership validation
+        if (order.user.toString() !== userId && userRole !== "admin") {
+            await session.abortTransaction();
+            return sendResponse(res, status.FORBIDDEN, "You do not have permission to cancel this order");
+        }
 
-    return sendResponse(res, status.OK, "Order cancelled", null, order);
+        if (order.orderStatus !== "pending") {
+            await session.abortTransaction();
+            return sendResponse(res, status.BAD_REQUEST, "Order cannot be cancelled");
+        }
+
+        order.orderStatus = "cancelled";
+
+        // Restore stock using bulkWrite in the transaction session
+        await Product.bulkWrite(
+            order.items.map((i) => ({
+                updateOne: {
+                    filter: { _id: i.product },
+                    update: { $inc: { stock: i.quantity } }
+                }
+            })),
+            { session }
+        );
+
+        await order.save({ session });
+        await session.commitTransaction();
+
+        return sendResponse(res, status.OK, "Order cancelled successfully", null, order);
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
 });
 
 export const updateOrderStatus = catchAsync(async (req: Request, res: Response) => {

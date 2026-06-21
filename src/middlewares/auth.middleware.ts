@@ -6,7 +6,7 @@ import { env } from "../config/env";
 import sendResponse from "../utils/sendResponse";
 import catchAsync from "../utils/catchAsync";
 
-type Role = "user" | "admin";
+type Role = "user" | "admin" | "driver";
 
 interface JwtPayload {
     sub: string;

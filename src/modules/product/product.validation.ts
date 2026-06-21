@@ -74,3 +74,9 @@ export const updateProductSchema = z.object({
             }
         )
 });
+
+export const getSingleProductSchema = z.object({
+    params: z.object({
+        id: objectIdSchema
+    })
+});

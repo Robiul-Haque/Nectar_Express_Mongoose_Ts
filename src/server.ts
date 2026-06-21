@@ -1,4 +1,6 @@
 import mongoose from 'mongoose';
+import cluster from 'cluster';
+import os from 'os';
 import { env } from './config/env';
 import logger from './utils/logger';
 import seedAdmin from './seeders/adminSeeder';
@@ -7,7 +9,7 @@ import { server } from './app';
 
 async function bootstrap() {
     // Start server instantly
-    const newServer = server.listen(env.PORT, () => console.log(`🚀 Server running on port ${env.PORT}`));
+    const newServer = server.listen(env.PORT, () => console.log(`🚀 Worker ${process.pid} running on port ${env.PORT}`));
 
     // DB connect (background)
     const dbUrl = env.DB_URL;
@@ -35,11 +37,27 @@ async function bootstrap() {
 
     // Graceful shutdown
     process.on('SIGTERM', async () => {
-        logger.warn('SIGTERM received. Shutting down...');
+        logger.warn(`Worker ${process.pid} SIGTERM received. Shutting down...`);
         await mongoose.disconnect();
         newServer.close();
         process.exit(0);
     });
 }
 
-bootstrap();
+// Cluster mode to utilize all CPU cores if enabled in configuration
+if (env.USE_CLUSTER && cluster.isPrimary) {
+    const numCPUs = os.cpus().length;
+    console.log(`⚡ Primary cluster process ${process.pid} is running. Spawning ${numCPUs} workers...`);
+
+    // Fork workers
+    for (let i = 0; i < numCPUs; i++) {
+        cluster.fork();
+    }
+
+    cluster.on('exit', (worker) => {
+        console.warn(`⚠️ Worker process ${worker.process.pid} died. Spawning a replacement...`);
+        cluster.fork();
+    });
+} else {
+    bootstrap();
+}

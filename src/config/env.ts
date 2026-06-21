@@ -28,4 +28,6 @@ export const env = {
     CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET as string,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY as string,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET as string,
+    REDIS_URL: process.env.REDIS_URL as string,
+    USE_CLUSTER: process.env.USE_CLUSTER === 'true'
 };

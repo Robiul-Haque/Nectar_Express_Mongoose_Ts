@@ -19,6 +19,7 @@ export interface IOrderItem {
 
 export interface IOrder extends Document {
     user: Types.ObjectId;
+    driver?: Types.ObjectId;
     items: IOrderItem[];
     totalQuantity: number;
     totalPrice: number;

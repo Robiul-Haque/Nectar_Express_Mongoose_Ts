@@ -1,7 +1,7 @@
 import { Model, HydratedDocument } from "mongoose";
 
 export type AuthProvider = "email" | "google" | "facebook";
-export type UserRole = "user" | "admin";
+export type UserRole = "user" | "admin" | "driver";
 export type DevicePlatform = "android" | "ios" | "web";
 
 export interface IDevice {

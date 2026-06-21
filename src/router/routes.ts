@@ -14,6 +14,7 @@ import chatRouter from "../modules/chat/chat.router";
 import messageRoute from "../modules/message/message.route";
 import sliderRouter from "../modules/slider/slider.route";
 import dashboardRouter from "../modules/dashboard/dashboard.route";
+import trackingRouter from "../modules/tracking/tracking.route";
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use("/chat", chatRouter);
 router.use("/message", messageRoute);
 router.use("/slider", sliderRouter);
 router.use("/dashboard", dashboardRouter);
+router.use("/tracking", trackingRouter);
 
 export default router;
