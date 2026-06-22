@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import slugify from "slugify";
 import httpStatus from "http-status";
 import Product from "./product.model";
+import Category from "../category/category.model";
 import { sendPushNotification, TPushPayload } from "../../utils/pushNotification";
 import sendResponse from "../../utils/sendResponse";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
@@ -180,6 +181,83 @@ export const getProductStats = catchAsync(async (_req: Request, res: Response) =
     };
 
     return sendResponse(res, httpStatus.OK, "Product stats retrieved successfully", null, formattedStats);
+});
+
+export const getHomeProducts = catchAsync(async (req: Request, res: Response) => {
+    // 1. Fetch all active categories
+    const categories = await Category.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 }).lean();
+
+    // 2. Fetch Featured Products (isFeatured = true)
+    const featuredProducts = await Product.find({ isActive: true, isFeatured: true })
+        .populate("category", "name")
+        .populate("brand", "name")
+        .select("-nutrition")
+        .limit(10)
+        .lean();
+
+    // 3. Fetch Exclusive Offers (discountPrice exists and is less than price)
+    const exclusiveOffers = await Product.find({ 
+        isActive: true, 
+        discountPrice: { $exists: true, $ne: null } 
+    })
+        .populate("category", "name")
+        .populate("brand", "name")
+        .select("-nutrition")
+        .limit(10)
+        .lean();
+
+    // 4. Fetch Best Selling (sorted by totalReviews and averageRating descending)
+    const bestSelling = await Product.find({ isActive: true })
+        .populate("category", "name")
+        .populate("brand", "name")
+        .select("-nutrition")
+        .sort({ totalReviews: -1, averageRating: -1, createdAt: -1 })
+        .limit(10)
+        .lean();
+
+    // 5. Fetch Grocery products
+    // Find categories related to groceries/drinks/etc.
+    const groceryCategoryIds = categories
+        .filter(cat => /grocery|food|drink|beverage|fruit|veg|meat|fish|dairy|bakery/i.test(cat.name))
+        .map(cat => cat._id);
+
+    let groceryQuery: any = { isActive: true };
+    if (groceryCategoryIds.length > 0) {
+        groceryQuery.category = { $in: groceryCategoryIds };
+    }
+
+    const groceries = await Product.find(groceryQuery)
+        .populate("category", "name")
+        .populate("brand", "name")
+        .select("-nutrition")
+        .limit(10)
+        .lean();
+
+    // 6. Format categories for the frontend UI structure:
+    // (id, name, image, bgColor)
+    const FIGMA_BG_COLORS = [
+        "rgba(83, 177, 117, 0.1)",   // Light Green
+        "rgba(248, 164, 41, 0.1)",   // Light Yellow-Orange
+        "rgba(247, 161, 161, 0.15)",  // Light Red/Pink
+        "rgba(211, 176, 224, 0.15)",  // Light Purple
+        "rgba(253, 229, 152, 0.2)",   // Cream/Yellow
+        "rgba(183, 223, 245, 0.2)"    // Light Blue
+    ];
+
+    const formattedCategories = categories.map((cat, index) => ({
+        id: cat._id.toString(),
+        name: cat.name,
+        image: cat.icon?.url || "https://images.unsplash.com/photo-1610832958506-ee56336191d1?auto=format&fit=crop&q=80&w=150",
+        bgColor: FIGMA_BG_COLORS[index % FIGMA_BG_COLORS.length]
+    }));
+
+    return sendResponse(res, httpStatus.OK, "Home data retrieved successfully", null, {
+        featuredProducts,
+        exclusiveOffers,
+        bestSelling,
+        groceries,
+        categories: formattedCategories
+    });
 });
 
 export const getSingleProduct = catchAsync(async (req: Request, res: Response) => {
