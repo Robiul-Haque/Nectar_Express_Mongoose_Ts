@@ -12,6 +12,9 @@ services:
     env_file:
       - .env
 
+    environment:
+      - REDIS_URL=redis://redis:6379
+
     volumes:
       - .:/app
       - /app/node_modules
@@ -26,7 +29,7 @@ services:
       - redis
 
   redis:
-    image: redis:alpine
+    image: public.ecr.aws/docker/library/redis:alpine
     container_name: nectar-redis
     ports:
       - "6379:6379"
