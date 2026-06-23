@@ -9,7 +9,7 @@ import { server } from './app';
 
 async function bootstrap() {
     // Start server instantly
-    const newServer = server.listen(env.PORT, () => console.log(`🚀 Worker ${process.pid} running on port ${env.PORT}`));
+    const newServer = server.listen(env.PORT, '0.0.0.0', () => console.log(`🚀 Worker ${process.pid} running on port ${env.PORT}`));
 
     // DB connect (background)
     const dbUrl = env.DB_URL;
