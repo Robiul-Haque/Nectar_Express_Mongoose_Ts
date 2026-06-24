@@ -19,6 +19,6 @@ router.post("/firebase/google-login", authRateLimiter, validateRequest(googleLog
 router.post("/firebase/facebook-login", authRateLimiter, validateRequest(facebookLoginSchema), facebookLogin);
 
 // Admin routes
-router.post("/admin/signup", authRateLimiter, validateRequest(emailLoginSchema), adminLogin);
+router.post("/admin/login", authRateLimiter, validateRequest(emailLoginSchema), adminLogin);
 
 export default router;

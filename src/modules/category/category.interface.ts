@@ -6,8 +6,6 @@ export interface ICategory {
         url: string;
         publicId: string;
     };
-    image?: string;
-    level?: number;
     isActive: boolean;
     isFeatured: boolean;
     sortOrder: number;

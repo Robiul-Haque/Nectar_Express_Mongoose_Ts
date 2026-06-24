@@ -1,5 +1,3 @@
-import errorHandler from "../middlewares/errorHandler.middleware";
-
 export interface IGeneratedOTP {
     otp: string;
     otpExpires: Date;

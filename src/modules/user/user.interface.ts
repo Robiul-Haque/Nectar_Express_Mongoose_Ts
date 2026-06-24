@@ -24,10 +24,10 @@ export interface IUser {
         publicId: string;
     };
     location?: {
-        latitude: Number;
-        longitude: Number;
-        country: String;
-        city: String;
+        latitude: number;
+        longitude: number;
+        country: string;
+        city: string;
     };
     isActive: boolean;
     isVerified: boolean;

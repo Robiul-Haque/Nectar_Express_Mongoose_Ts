@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import { Types, Document } from "mongoose";
 
 export interface IBookmark extends Document {
     user: Types.ObjectId;

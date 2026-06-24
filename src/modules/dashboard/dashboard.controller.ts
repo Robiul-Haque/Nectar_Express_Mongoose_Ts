@@ -22,8 +22,8 @@ export const getDashboardAnalytics = catchAsync(async (req: Request, res: Respon
 
 
     const validOrderMatch = {
-        paymentStatus: { $in: ["paid", "Paid", "PAID"] },
-        orderStatus: { $nin: ["cancelled", "Cancelled"] }
+        paymentStatus: "paid",
+        orderStatus: { $ne: "cancelled" }
     };
 
     const [totalSalesResult, dailyOrders, newCustomers, outOfStock, weeklySalesRaw, monthlySalesRaw, popularProducts] = await Promise.all([
@@ -41,7 +41,7 @@ export const getDashboardAnalytics = catchAsync(async (req: Request, res: Respon
 
         Order.countDocuments({
             createdAt: { $gte: todayStart },
-            orderStatus: { $nin: ["cancelled", "Cancelled"] }
+            orderStatus: { $ne: "cancelled" }
         }),
 
         User.countDocuments({

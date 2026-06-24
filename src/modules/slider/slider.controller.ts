@@ -50,7 +50,14 @@ export const updateSlider = catchAsync(async (req: Request, res: Response) => {
     const slider = await Slider.findById(id);
     if (!slider) return sendResponse(res, status.NOT_FOUND, "Slider not found");
 
-    const updateData: any = { ...req.body };
+    // Separate regular fields from MongoDB operators
+    const { isActive, ...textFields } = req.body;
+    const updateOperators: any = {};
+
+    // Set regular text fields
+    if (Object.keys(textFields).length > 0) {
+        updateOperators.$set = { ...textFields };
+    }
 
     if (files && files.length > 0) {
         if (files.length > 10) return sendResponse(res, status.BAD_REQUEST, "Maximum 10 images per upload");
@@ -65,15 +72,22 @@ export const updateSlider = catchAsync(async (req: Request, res: Response) => {
             displayOrder: slider.images.length + index
         }));
 
-        updateData.$push = { images: { $each: newImages } };
+        updateOperators.$push = { images: { $each: newImages } };
     }
 
-    if (updateData.isActive) {
-        const activeOther = await Slider.findOne({ _id: { $ne: slider._id }, isActive: true });
-        if (activeOther) return sendResponse(res, status.BAD_REQUEST, "Only one slider can be active at a time");
+    if (isActive !== undefined) {
+        if (isActive === true || isActive === "true") {
+            const activeOther = await Slider.findOne({ _id: { $ne: slider._id }, isActive: true });
+            if (activeOther) return sendResponse(res, status.BAD_REQUEST, "Only one slider can be active at a time");
+        }
+        updateOperators.$set = { ...(updateOperators.$set || {}), isActive: isActive === true || isActive === "true" };
     }
 
-    const updatedSlider = await Slider.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
+    if (Object.keys(updateOperators).length === 0) {
+        return sendResponse(res, status.BAD_REQUEST, "No update data provided");
+    }
+
+    const updatedSlider = await Slider.findByIdAndUpdate(id, updateOperators, { new: true, runValidators: true });
     return sendResponse(res, status.OK, "Slider updated successfully", null, updatedSlider);
 });
 
