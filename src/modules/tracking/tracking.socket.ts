@@ -14,7 +14,31 @@ interface AuthenticatedSocket extends Socket {
     user?: SocketPayload;
 }
 
+// In-memory rate limiter for tracking socket events
+const trackingRateLimits = new Map<string, Map<string, { count: number; resetAt: number }>>();
+
+function checkTrackingRateLimit(socketId: string, event: string, maxRequests: number, windowMs: number): boolean {
+    const now = Date.now();
+    let limits = trackingRateLimits.get(socketId);
+    if (!limits) {
+        limits = new Map();
+        trackingRateLimits.set(socketId, limits);
+    }
+    let eventLimit = limits.get(event);
+    if (!eventLimit || now > eventLimit.resetAt) {
+        eventLimit = { count: 0, resetAt: now + windowMs };
+        limits.set(event, eventLimit);
+    }
+    eventLimit.count++;
+    if (eventLimit.count > maxRequests) return false;
+    return true;
+}
+
 export const registerTrackingHandlers = (io: Server, socket: AuthenticatedSocket) => {
+    // Cleanup rate limit data when socket disconnects
+    socket.on("disconnect", () => {
+        trackingRateLimits.delete(socket.id);
+    });
     // 1. Client joins room to listen to live tracking of an order
     socket.on(
         "joinOrderTrack",
@@ -23,6 +47,9 @@ export const registerTrackingHandlers = (io: Server, socket: AuthenticatedSocket
             callback?: (response: { status: string; message: string }) => void
         ) => {
             try {
+                if (!checkTrackingRateLimit(socket.id, "joinOrderTrack", 20, 60000)) {
+                    return callback?.({ status: "error", message: "Rate limit exceeded. Please slow down." });
+                }
                 if (!mongoose.Types.ObjectId.isValid(orderId)) {
                     socket.emit("error", "Invalid orderId");
                     return callback?.({ status: "error", message: "Invalid orderId" });
@@ -83,6 +110,9 @@ export const registerTrackingHandlers = (io: Server, socket: AuthenticatedSocket
             callback?: (response: { status: string; message: string }) => void
         ) => {
             try {
+                if (!checkTrackingRateLimit(socket.id, "driver:update-location", 60, 60000)) {
+                    return callback?.({ status: "error", message: "Rate limit exceeded. Please slow down." });
+                }
                 const driverId = socket.user?.sub;
                 const userRole = socket.user?.role;
 

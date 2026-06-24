@@ -6,6 +6,49 @@ import Chat from "../modules/chat/chat.model";
 import Message from "../modules/message/message.model";
 import { registerTrackingHandlers } from "../modules/tracking/tracking.socket";
 
+// In-memory socket rate limiter (per socket, per event type)
+const socketRateLimits = new Map<string, Map<string, { count: number; resetAt: number }>>();
+
+const SOCKET_RATE_LIMITS: Record<string, { maxRequests: number; windowMs: number }> = {
+    "sendMessage": { maxRequests: 30, windowMs: 60000 },       // 30 msg/min
+    "driver:update-location": { maxRequests: 60, windowMs: 60000 }, // 60 updates/min
+    "joinOrderTrack": { maxRequests: 20, windowMs: 60000 },    // 20 joins/min
+    "markAsRead": { maxRequests: 60, windowMs: 60000 },        // 60 reads/min
+    "joinRoom": { maxRequests: 30, windowMs: 60000 },          // 30 joins/min
+};
+
+function checkSocketRateLimit(socketId: string, event: string): boolean {
+    const config = SOCKET_RATE_LIMITS[event];
+    if (!config) return true; // no limit for this event
+
+    const now = Date.now();
+    let socketLimits = socketRateLimits.get(socketId);
+
+    if (!socketLimits) {
+        socketLimits = new Map();
+        socketRateLimits.set(socketId, socketLimits);
+    }
+
+    let eventLimit = socketLimits.get(event);
+    if (!eventLimit || now > eventLimit.resetAt) {
+        eventLimit = { count: 0, resetAt: now + config.windowMs };
+        socketLimits.set(event, eventLimit);
+    }
+
+    eventLimit.count++;
+
+    if (eventLimit.count > config.maxRequests) {
+        return false; // rate limited
+    }
+
+    return true;
+}
+
+// Cleanup rate limit data when socket disconnects
+function cleanupSocketRateLimit(socketId: string) {
+    socketRateLimits.delete(socketId);
+}
+
 interface SocketPayload extends JwtPayload {
     sub: string;
     role: "user" | "admin" | "driver";
@@ -37,6 +80,9 @@ export const initializeSocket = (io: Server) => {
         if (userId) socket.join(userId);
 
         socket.on("joinRoom", ({ chatId }: { chatId: string }) => {
+            if (!checkSocketRateLimit(socket.id, "joinRoom")) {
+                return socket.emit("error", "Rate limit exceeded. Please slow down.");
+            }
             if (!mongoose.Types.ObjectId.isValid(chatId)) return socket.emit("error", "Invalid chatId");
             console.log(`🔵 Join Room: ${chatId} | Socket: ${socket.id}`);
             socket.join(chatId);
@@ -44,6 +90,9 @@ export const initializeSocket = (io: Server) => {
 
         socket.on("sendMessage", async ({ chatId, content, type = "text" }: { chatId: string; content: string; type?: "text" | "image"; }) => {
             try {
+                if (!checkSocketRateLimit(socket.id, "sendMessage")) {
+                    return socket.emit("error", "Rate limit exceeded. Please slow down.");
+                }
                 if (!userId) return socket.emit("error", "Unauthorized");
                 if (!mongoose.Types.ObjectId.isValid(chatId)) return socket.emit("error", "Invalid chatId");
                 if (type === "text" && !content?.trim()) return socket.emit("error", "Message content required");
@@ -93,6 +142,9 @@ export const initializeSocket = (io: Server) => {
 
         socket.on("markAsRead", async (chatId: string) => {
             try {
+                if (!checkSocketRateLimit(socket.id, "markAsRead")) {
+                    return socket.emit("error", "Rate limit exceeded. Please slow down.");
+                }
                 if (!userId || !mongoose.Types.ObjectId.isValid(chatId)) return;
                 
                 await Message.updateMany(
@@ -113,6 +165,9 @@ export const initializeSocket = (io: Server) => {
         // Register new tracking real-time handlers
         registerTrackingHandlers(io, socket);
 
-        socket.on("disconnect", () => console.log(`🔴 Disconnected: ${socket.id} | User: ${userId}`));
+        socket.on("disconnect", () => {
+            cleanupSocketRateLimit(socket.id);
+            console.log(`🔴 Disconnected: ${socket.id} | User: ${userId}`);
+        });
     });
 };
