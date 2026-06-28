@@ -2,14 +2,8 @@ export interface IBrand {
     _id?: string;
     name: string;
     logo?: {
-        url: {
-            type: String,
-            default: null
-        },
-        publicId: {
-            type: String,
-            default: null,
-        }
+        url: string;
+        publicId: string;
     };
     isActive: boolean;
     createdAt?: Date;

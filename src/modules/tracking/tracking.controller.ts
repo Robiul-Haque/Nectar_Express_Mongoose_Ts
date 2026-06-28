@@ -22,17 +22,19 @@ export const updateLocationHelper = async (
     orderId?: string,
     io?: Server
 ) => {
-    // 1. Update DriverLocation collection
+    // 1. Update DriverLocation collection (preserve existing isActive status)
     const driverLoc = await DriverLocation.findOneAndUpdate(
         { driver: new mongoose.Types.ObjectId(driverId) },
         {
-            location: {
-                type: "Point",
-                coordinates: [longitude, latitude] // GeoJSON coordinates format is [longitude, latitude]
+            $set: {
+                location: {
+                    type: "Point",
+                    coordinates: [longitude, latitude] // GeoJSON coordinates format is [longitude, latitude]
+                },
+                bearing: bearing || 0,
+                speed: speed || 0
             },
-            bearing: bearing || 0,
-            speed: speed || 0,
-            isActive: true
+            $setOnInsert: { isActive: true } // only set to true on first creation
         },
         { upsert: true, new: true }
     );
@@ -276,7 +278,7 @@ export const toggleDriverActiveStatus = catchAsync(async (req: Request, res: Res
 
     const driverLoc = await DriverLocation.findOneAndUpdate(
         { driver: new mongoose.Types.ObjectId(driverId) },
-        { isActive },
+        { $set: { isActive } },
         { upsert: true, new: true }
     );
 

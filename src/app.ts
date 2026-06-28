@@ -8,7 +8,7 @@ import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import Redis from "ioredis";
 import { initializeSocket } from './utils/socketUtils';
-import notFound from './middlewares/errorHandler.middleware';
+import notFound from './middlewares/notFound.middleware';
 import errorHandler from './middlewares/errorHandler.middleware';
 import { globalRateLimiter } from './middlewares/rateLimiter.middleware';
 import sendResponse from './utils/sendResponse';
@@ -20,7 +20,18 @@ import router from './router/routes';
 const app = express();
 
 // Security
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
+            connectSrc: ["'self'", "https://api.stripe.com"],
+        },
+    },
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(cors({ origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001"], credentials: true }));
 app.use(compression());
 
@@ -34,7 +45,7 @@ app.use(cookieParser());
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: ["http://localhost:5173", "http://localhost:3000"],
+        origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001"],
         methods: ["GET", "POST"],
         credentials: true,
     },
@@ -44,6 +55,15 @@ const io = new Server(server, {
 if (env.REDIS_URL) {
     const pubClient = new Redis(env.REDIS_URL);
     const subClient = pubClient.duplicate();
+
+    pubClient.on("error", (err) => {
+        console.error("❌ Redis (pub) connection error:", err.message);
+    });
+
+    subClient.on("error", (err) => {
+        console.error("❌ Redis (sub) connection error:", err.message);
+    });
+
     io.adapter(createAdapter(pubClient, subClient));
 }
 

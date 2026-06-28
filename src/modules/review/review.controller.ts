@@ -59,12 +59,12 @@ export const updateReview = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user?.sub;
     const role = req.user?.role;
 
-    const review = await Review.findById({ id: req.body.reviewId });
+    const review = await Review.findById(req.body.reviewId);
     if (!review) return sendResponse(res, httpStatus.NOT_FOUND, "Review not found");
 
     // Only owner or admin
     if (role !== "admin" && review.user.toString() !== userId) return sendResponse(res, httpStatus.FORBIDDEN, "You cannot update this review");
-    const updatedReview = await Review.findByIdAndUpdate({ id: req.body.reviewId }, req.body, { new: true, runValidators: true }).lean();
+    const updatedReview = await Review.findByIdAndUpdate(req.body.reviewId, req.body, { new: true, runValidators: true }).lean();
 
     return sendResponse(res, httpStatus.OK, "Review updated successfully", null, updatedReview);
 });

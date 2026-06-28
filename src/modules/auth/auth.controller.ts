@@ -606,7 +606,7 @@ export const facebookLogin = catchAsync(async (req: Request, res: Response) => {
 
     const accessToken = createToken(
         "access",
-        { sub: user._id.toString(), role: user.role, provider: user.provider },
+        { sub: user._id.toString(), role: user.role, provider: user.provider, v: user.refreshTokenVersion },
         { secret: env.JWT_ACCESS_TOKEN, expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"], issuer: "nectar-api", audience: "nectar-users" }
     );
 
