@@ -15,6 +15,7 @@ import messageRoute from "../modules/message/message.route";
 import sliderRouter from "../modules/slider/slider.route";
 import dashboardRouter from "../modules/dashboard/dashboard.route";
 import trackingRouter from "../modules/tracking/tracking.route";
+import adminCustomerRouter from "../modules/adminCustomer/adminCustomer.route";
 
 const router = Router();
 
@@ -34,5 +35,6 @@ router.use("/message", messageRoute);
 router.use("/slider", sliderRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/tracking", trackingRouter);
+router.use("/admin/customers", adminCustomerRouter);
 
 export default router;

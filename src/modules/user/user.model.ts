@@ -18,6 +18,18 @@ const deviceSchema = new Schema(
             type: String,
             default: null
         },
+        deviceModel: {
+            type: String,
+            default: null
+        },
+        osVersion: {
+            type: String,
+            default: null
+        },
+        appVersion: {
+            type: String,
+            default: null
+        },
         lastActive: {
             type: Date,
             default: Date.now
@@ -108,6 +120,31 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
         },
         lastLoginAt: {
             type: Date
+        },
+
+        // ─── Security & Brute-Force Protection ───────────────────────────────
+        failedLoginCount: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
+        loginLockedUntil: {
+            type: Date,
+            default: null,
+            index: true   // admin queries for locked accounts
+        },
+        passwordChangedAt: {
+            type: Date,
+            default: null
+        },
+        lastKnownIp: {
+            type: String,
+            default: null,
+            select: false
+        },
+        appVersion: {
+            type: String,
+            default: null
         }
     },
     {
