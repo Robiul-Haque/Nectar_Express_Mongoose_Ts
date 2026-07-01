@@ -539,12 +539,12 @@ export const getAdminNotes = catchAsync(async (req: Request, res: Response) => {
     ]);
 
     const formatted = notes.map((n: any) => ({
-        noteId: n._id,
+        _id: n._id,
         note: n.note,
         createdAt: n.createdAt,
         updatedAt: n.updatedAt,
-        createdBy: {
-            id: n.adminId?._id,
+        adminId: {
+            _id: n.adminId?._id,
             name: n.adminId?.name,
             email: n.adminId?.email,
             avatar: n.adminId?.avatar?.url || null
@@ -565,7 +565,7 @@ export const getAdminNotes = catchAsync(async (req: Request, res: Response) => {
  */
 export const addAdminNote = catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id as string;
-    const adminId = req.user!.sub;
+    const adminId = new Types.ObjectId(req.user!.sub);
     const { note } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) return sendResponse(res, status.BAD_REQUEST, "Invalid customer ID");
@@ -592,7 +592,8 @@ export const addAdminNote = catchAsync(async (req: Request, res: Response) => {
 export const updateAdminNote = catchAsync(async (req: Request, res: Response) => {
     const id = req.params.id as string;
     const noteId = req.params.noteId as string;
-    const adminId = req.user!.sub;
+    // Cast to ObjectId so Mongoose can properly match the stored ObjectId field
+    const adminId = new Types.ObjectId(req.user!.sub);
     const { note } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(noteId)) {
