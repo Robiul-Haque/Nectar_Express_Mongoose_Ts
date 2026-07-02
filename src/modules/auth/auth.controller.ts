@@ -20,6 +20,16 @@ const LOCK_DURATION_MS = 20 * 60 * 1000;          // 20 minutes
 const LOCK_DURATION_SECONDS = 20 * 60;             // 20 minutes in seconds
 const REDIS_LOCK_PREFIX = "auth:lock:";            // Redis key prefix for lock cache
 
+// ─── Utility: Parse duration string (e.g. "120m", "7d") to milliseconds ────────
+const parseDurationMs = (duration: string): number => {
+    const match = duration?.match(/(\d+)([smhd])/);
+    if (!match) return 15 * 60 * 1000; // fallback: 15 min
+    const val = parseInt(match[1]);
+    const unit = match[2];
+    const multipliers: Record<string, number> = { s: 1000, m: 60 * 1000, h: 3600 * 1000, d: 86400 * 1000 };
+    return val * (multipliers[unit] || 60 * 1000);
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -282,8 +292,15 @@ export const emailLogin = catchAsync(async (req: Request, res: Response) => {
         { secret: env.JWT_REFRESH_TOKEN, expiresIn: env.REFRESH_TOKEN_EXPIRES_IN as SignOptions["expiresIn"], issuer: "nectar-api", audience: "nectar-users" }
     );
 
-    // Set cookies for development
-    if (env.NODE_ENV === "development") res.cookie("accessToken", accessToken, { httpOnly: true, secure: false, sameSite: "lax", maxAge: 15 * 60 * 1000 });
+    const accessTokenMaxAge = parseDurationMs(env.ACCESS_TOKEN_EXPIRES_IN);
+
+    // Set cookies — always set accessToken so middleware can read it
+    res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: accessTokenMaxAge
+    });
 
     // Set HTTP-only cookies for refresh token
     res.cookie("refreshToken", refreshToken, {
@@ -293,18 +310,21 @@ export const emailLogin = catchAsync(async (req: Request, res: Response) => {
         maxAge: 1000 * 60 * 60 * 24 * 7
     });
 
-    return sendResponse(res, status.OK, "Login successful", null, { accessToken });
+    return sendResponse(res, status.OK, "Login successful", null, { accessToken, refreshToken });
 });
+
 
 export const refreshToken = catchAsync(async (req: Request, res: Response) => {
     // Get refresh token from cookie
     const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) return sendResponse(res, status.UNAUTHORIZED, "Refresh token not found");
 
-    // Verify refresh token
+    // Verify refresh token — accept both user and admin audiences
     let payload: JwtPayload;
     try {
-        payload = jwt.verify(refreshToken, env.JWT_REFRESH_TOKEN) as JwtPayload;
+        payload = jwt.verify(refreshToken, env.JWT_REFRESH_TOKEN, {
+            issuer: "nectar-api",
+        }) as JwtPayload;
     } catch (err) {
         return sendResponse(res, status.UNAUTHORIZED, "Invalid or expired refresh token");
     }
@@ -316,7 +336,10 @@ export const refreshToken = catchAsync(async (req: Request, res: Response) => {
     // isActive check
     if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
 
-    // Generate new tokens
+    // Determine audience based on role
+    const audience = user.role === "admin" ? "nectar-admin" : "nectar-users";
+
+    // Generate new access token
     const accessToken = createToken(
         "access",
         {
@@ -329,10 +352,11 @@ export const refreshToken = catchAsync(async (req: Request, res: Response) => {
             secret: env.JWT_ACCESS_TOKEN,
             expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"],
             issuer: "nectar-api",
-            audience: "nectar-users",
+            audience,
         }
     );
 
+    // Generate new refresh token (rotation)
     const newRefreshToken = createToken(
         "refresh",
         {
@@ -343,16 +367,18 @@ export const refreshToken = catchAsync(async (req: Request, res: Response) => {
             secret: env.JWT_REFRESH_TOKEN,
             expiresIn: env.REFRESH_TOKEN_EXPIRES_IN as SignOptions["expiresIn"],
             issuer: "nectar-api",
-            audience: "nectar-users",
+            audience,
         }
     );
+
+    const accessTokenMaxAge = parseDurationMs(env.ACCESS_TOKEN_EXPIRES_IN);
 
     // Set cookies
     res.cookie("accessToken", accessToken, {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
         sameSite: env.NODE_ENV === "production" ? "none" : "lax",
-        maxAge: 15 * 60 * 1000, // 15 min
+        maxAge: accessTokenMaxAge,
     });
 
     res.cookie("refreshToken", newRefreshToken, {
@@ -525,14 +551,22 @@ export const googleLogin = catchAsync(async (req: Request, res: Response) => {
     const accessToken = createToken(
         "access",
         { sub: user._id.toString(), role: user.role, provider: user.provider, v: user.refreshTokenVersion },
-        { secret: env.JWT_ACCESS_TOKEN, expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"] }
+        { secret: env.JWT_ACCESS_TOKEN, expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"], issuer: "nectar-api", audience: "nectar-users" }
     );
 
     const refreshToken = createToken(
         "refresh",
         { sub: user._id.toString(), v: user.refreshTokenVersion },
-        { secret: env.JWT_REFRESH_TOKEN, expiresIn: env.REFRESH_TOKEN_EXPIRES_IN as SignOptions["expiresIn"] }
+        { secret: env.JWT_REFRESH_TOKEN, expiresIn: env.REFRESH_TOKEN_EXPIRES_IN as SignOptions["expiresIn"], issuer: "nectar-api", audience: "nectar-users" }
     );
+
+    // Set refreshToken as httpOnly cookie (for mobile/web cookie-based flow)
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
 
     return sendResponse(res, status.OK, "Google login successful", null, { accessToken, refreshToken, user: { id: user._id, name: user.name, email: user.email, role: user.role, avatar: user.avatar, provider: user.provider } });
 });
@@ -610,8 +644,24 @@ export const facebookLogin = catchAsync(async (req: Request, res: Response) => {
         { secret: env.JWT_ACCESS_TOKEN, expiresIn: env.ACCESS_TOKEN_EXPIRES_IN as SignOptions["expiresIn"], issuer: "nectar-api", audience: "nectar-users" }
     );
 
+    // Create refresh token for Facebook (was missing)
+    const refreshToken = createToken(
+        "refresh",
+        { sub: user._id.toString(), v: user.refreshTokenVersion },
+        { secret: env.JWT_REFRESH_TOKEN, expiresIn: env.REFRESH_TOKEN_EXPIRES_IN as SignOptions["expiresIn"], issuer: "nectar-api", audience: "nectar-users" }
+    );
+
+    // Set refreshToken as httpOnly cookie
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
     return sendResponse(res, status.OK, "Facebook login successful", null, {
         accessToken,
+        refreshToken,
         user: {
             id: user._id,
             name: user.name,
@@ -691,22 +741,23 @@ export const adminLogin = catchAsync(async (req: Request, res: Response) => {
         }
     );
 
-    if (env.NODE_ENV === "development") {
-        res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: false,
-            sameSite: "lax",
-            maxAge: 15 * 60 * 1000
-        });
-    }
+    const accessTokenMaxAge = parseDurationMs(env.ACCESS_TOKEN_EXPIRES_IN);
 
-    // HTTP-only Cookie
+    // Always set accessToken cookie (not just in development) so Next.js middleware can read it
+    res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: accessTokenMaxAge // matches JWT expiry (e.g. 120min)
+    });
+
+    // HTTP-only Cookie for refresh token — path="/" so all routes can send it
     res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
         sameSite: env.NODE_ENV === "production" ? "none" : "lax",
-        path: "/auth/admin",
-        maxAge: 1000 * 60 * 60 * 24 * 7
+        path: "/",
+        maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
     });
 
     return sendResponse(res, status.OK, "Admin login successful", null, { accessToken });

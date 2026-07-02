@@ -20,5 +20,7 @@ router.post("/firebase/facebook-login", authRateLimiter, validateRequest(faceboo
 
 // Admin routes
 router.post("/admin/login", authRateLimiter, validateRequest(emailLoginSchema), adminLogin);
+router.post("/admin/refresh-token", refreshTokenLimiter, validateRequest(refreshTokenSchema), refreshToken);
+router.post("/admin/logout", authenticate(["admin"]), logout);
 
 export default router;
