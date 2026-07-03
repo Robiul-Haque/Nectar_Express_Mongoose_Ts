@@ -484,6 +484,7 @@ export const resetPassword = catchAsync(async (req: Request, res: Response) => {
 export const googleLogin = catchAsync(async (req: Request, res: Response) => {
     const { idToken, fcmToken, platform, deviceId } = req.body;
     if (!idToken) return sendResponse(res, status.BAD_REQUEST, "Firebase ID token is required");
+    if (!firebaseAdmin) return sendResponse(res, status.SERVICE_UNAVAILABLE, "Firebase authentication is not configured");
 
     const decodedToken = await firebaseAdmin.auth().verifyIdToken(idToken);
 
@@ -574,6 +575,7 @@ export const googleLogin = catchAsync(async (req: Request, res: Response) => {
 export const facebookLogin = catchAsync(async (req: Request, res: Response) => {
     const { idToken, fcmToken, platform, deviceId } = req.body;
     if (!idToken) return sendResponse(res, status.BAD_REQUEST, "Firebase ID token is required");
+    if (!firebaseAdmin) return sendResponse(res, status.SERVICE_UNAVAILABLE, "Firebase authentication is not configured");
 
     const decodedToken = await firebaseAdmin.auth().verifyIdToken(idToken, true);
     const { email, name, picture, firebase } = decodedToken;

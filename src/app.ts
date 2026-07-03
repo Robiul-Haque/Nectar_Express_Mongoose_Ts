@@ -4,9 +4,11 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
+import mongoose from 'mongoose';
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import Redis from "ioredis";
+import redis from './utils/redis';
 import { initializeSocket } from './utils/socketUtils';
 import notFound from './middlewares/notFound.middleware';
 import errorHandler from './middlewares/errorHandler.middleware';
@@ -52,28 +54,65 @@ const io = new Server(server, {
     },
 });
 
+let socketPubClient: Redis | null = null;
+let socketSubClient: Redis | null = null;
+
 // Scale Socket.IO using Redis Adapter across CPU cluster workers
 if (env.REDIS_URL) {
-    const pubClient = new Redis(env.REDIS_URL, {
+    socketPubClient = new Redis(env.REDIS_URL, {
         maxRetriesPerRequest: 3,
+        retryStrategy: (times) => Math.min(times * 100, 3000),
         reconnectOnError: () => true,
     });
-    const subClient = pubClient.duplicate();
+    socketSubClient = socketPubClient.duplicate();
 
-    pubClient.on("error", (err) => {
+    socketPubClient.on("error", (err) => {
         logger.error(`❌ Redis (pub) connection error: ${err.message}`);
     });
 
-    subClient.on("error", (err) => {
+    socketSubClient.on("error", (err) => {
         logger.error(`❌ Redis (sub) connection error: ${err.message}`);
     });
 
-    io.adapter(createAdapter(pubClient, subClient));
+    io.adapter(createAdapter(socketPubClient, socketSubClient));
 }
+
+export const closeSocketAdapterClients = async (): Promise<void> => {
+    try {
+        if (socketPubClient) await socketPubClient.quit();
+        if (socketSubClient) await socketSubClient.quit();
+        logger.info("Socket.IO Redis adapter clients closed.");
+    } catch (err) {
+        logger.warn(`Error closing Socket.IO Redis adapter clients: ${err}`);
+    }
+};
 
 // Attach io to app for access in controllers & initialize socket events
 app.set("io", io);
 initializeSocket(io);
+
+// Health check endpoint for Docker / LB readiness probing
+const healthHandler = (req: Request, res: Response) => {
+    const isDbConnected = mongoose.connection.readyState === 1;
+    const isRedisConnected = redis ? redis.status === 'ready' : true;
+    const isHealthy = isDbConnected && isRedisConnected;
+
+    const healthData = {
+        status: isHealthy ? 'UP' : 'DOWN',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        pid: process.pid,
+        services: {
+            database: isDbConnected ? 'connected' : 'disconnected',
+            redis: env.REDIS_URL ? (redis ? redis.status : 'disconnected') : 'disabled',
+        },
+    };
+
+    res.status(isHealthy ? status.OK : status.SERVICE_UNAVAILABLE).json(healthData);
+};
+
+app.get('/health', healthHandler);
+app.get('/api/v1/health', healthHandler);
 
 // Rate limit
 app.use(globalRateLimiter);
@@ -87,4 +126,4 @@ app.use('/api/v1', router);
 app.use(notFound);
 app.use(errorHandler);
 
-export { app, server };
+export { app, server, io };

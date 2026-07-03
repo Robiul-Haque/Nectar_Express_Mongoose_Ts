@@ -6,6 +6,8 @@ import status from "http-status";
 import { Request, Response } from "express";
 
 export const createPaymentIntent = catchAsync(async (req: Request, res: Response) => {
+    if (!stripe) return sendResponse(res, status.SERVICE_UNAVAILABLE, "Stripe payment service is not configured");
+
     const userId = req.user!.sub;
     const { shippingAddress } = req.body;
 

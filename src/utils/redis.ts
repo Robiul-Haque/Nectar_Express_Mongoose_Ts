@@ -9,6 +9,7 @@ try {
     if (env.REDIS_URL) {
         redis = new Redis(env.REDIS_URL, {
             maxRetriesPerRequest: 3, // Avoid blocking indefinitely if connection fails
+            retryStrategy: (times) => Math.min(times * 100, 3000),
             reconnectOnError: () => true
         });
 
@@ -68,17 +69,40 @@ export const deleteCache = async (key: string): Promise<void> => {
 };
 
 /**
- * Delete keys matching a pattern (e.g. invalidating all product listings)
+ * Delete keys matching a pattern using non-blocking SCAN stream
  */
 export const deletePattern = async (pattern: string): Promise<void> => {
     if (!redis) return;
     try {
-        const keys = await redis.keys(pattern);
-        if (keys.length > 0) {
-            await redis.del(...keys);
+        const stream = redis.scanStream({ match: pattern, count: 100 });
+        const keysToDelete: string[] = [];
+
+        for await (const resultKeys of stream) {
+            keysToDelete.push(...resultKeys);
+        }
+
+        if (keysToDelete.length > 0) {
+            for (let i = 0; i < keysToDelete.length; i += 500) {
+                const chunk = keysToDelete.slice(i, i + 500);
+                await redis.del(...chunk);
+            }
         }
     } catch (err) {
         logger.warn(`[Redis] deletePattern failed for pattern ${pattern}: ${err}`);
+    }
+};
+
+/**
+ * Gracefully disconnect main Redis client
+ */
+export const closeMainRedis = async (): Promise<void> => {
+    if (redis) {
+        try {
+            await redis.quit();
+            logger.info("Main Redis connection closed.");
+        } catch (err) {
+            logger.warn(`Error closing main Redis connection: ${err}`);
+        }
     }
 };
 

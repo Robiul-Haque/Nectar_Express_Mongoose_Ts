@@ -1,8 +1,6 @@
 import nodemailer from "nodemailer";
-import dotenv from "dotenv";
 import logger from "./logger";
-
-dotenv.config();
+import { env } from "../config/env";
 
 interface OTPParams {
     to: string;
@@ -11,12 +9,12 @@ interface OTPParams {
 }
 
 export const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: process.env.SMTP_PORT === "465", // true for 465, false for 587
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_PORT === 465, // true for 465, false for 587
     auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: env.SMTP_USER,
+        pass: env.SMTP_PASS,
     },
 });
 
@@ -44,7 +42,7 @@ export const sendOTP = async ({ to, toName, otp }: OTPParams) => {
   `;
 
     return transporter.sendMail({
-        from: `"${process.env.SENDER_NAME}" <${process.env.SENDER_EMAIL}>`,
+        from: `"${env.SENDER_NAME}" <${env.SENDER_EMAIL}>`,
         to,
         subject: "Your OTP Code",
         html,
@@ -60,7 +58,7 @@ export const sendOTPEmail = async (params: OTPParams, retries = 2) => {
             return await sendOTP(params);
         } catch (err) {
             attempt++;
-            console.warn(`Attempt ${attempt} failed:`, err);
+            logger.warn(`OTP email attempt ${attempt} failed: ${err instanceof Error ? err.message : String(err)}`);
             if (attempt > retries) throw err;
         }
     }

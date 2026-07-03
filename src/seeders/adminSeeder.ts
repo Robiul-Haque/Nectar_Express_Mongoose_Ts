@@ -28,7 +28,11 @@ const seedAdmin = async (retries = 3, delayMs = 2000): Promise<void> => {
 
             logger.info('✅ Admin seeded successfully.');
             return;
-        } catch (error) {
+        } catch (error: any) {
+            if (error?.code === 11000) {
+                logger.info('ℹ️ Admin already seeded by another worker process.');
+                return;
+            }
             const errorMsg = error instanceof Error ? error.message : String(error);
             if (attempt < retries) {
                 logger.warn(`⚠️ Admin seeding attempt ${attempt}/${retries} failed (${errorMsg}). Retrying in ${delayMs / 1000}s...`);

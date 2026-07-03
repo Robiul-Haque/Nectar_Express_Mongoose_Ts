@@ -2,12 +2,30 @@ import { Server, Socket } from "socket.io";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import mongoose from "mongoose";
 import { env } from "../config/env";
+import logger from "./logger";
 import Chat from "../modules/chat/chat.model";
 import Message from "../modules/message/message.model";
 import { registerTrackingHandlers } from "../modules/tracking/tracking.socket";
 
 // In-memory socket rate limiter (per socket, per event type)
 const socketRateLimits = new Map<string, Map<string, { count: number; resetAt: number }>>();
+
+// Periodic cleanup of stale rate limit entries (every 5 minutes)
+setInterval(() => {
+    const now = Date.now();
+    for (const [socketId, limits] of socketRateLimits.entries()) {
+        let allExpired = true;
+        for (const limit of limits.values()) {
+            if (now <= limit.resetAt) {
+                allExpired = false;
+                break;
+            }
+        }
+        if (allExpired) {
+            socketRateLimits.delete(socketId);
+        }
+    }
+}, 5 * 60 * 1000).unref();
 
 const SOCKET_RATE_LIMITS: Record<string, { maxRequests: number; windowMs: number }> = {
     "sendMessage": { maxRequests: 30, windowMs: 60000 },       // 30 msg/min
@@ -76,7 +94,7 @@ export const initializeSocket = (io: Server) => {
 
     io.on("connection", (socket: AuthenticatedSocket) => {
         const userId = socket.user?.sub;
-        console.log(`✅ Socket Connected: ${socket.id} | User: ${userId}`);
+        logger.info(`✅ Socket Connected: ${socket.id} | User: ${userId}`);
         if (userId) socket.join(userId);
 
         socket.on("joinRoom", ({ chatId }: { chatId: string }) => {
@@ -84,7 +102,7 @@ export const initializeSocket = (io: Server) => {
                 return socket.emit("error", "Rate limit exceeded. Please slow down.");
             }
             if (!mongoose.Types.ObjectId.isValid(chatId)) return socket.emit("error", "Invalid chatId");
-            console.log(`🔵 Join Room: ${chatId} | Socket: ${socket.id}`);
+            logger.info(`🔵 Join Room: ${chatId} | Socket: ${socket.id}`);
             socket.join(chatId);
         });
 
@@ -135,7 +153,7 @@ export const initializeSocket = (io: Server) => {
 
                 io.to(chatId).emit("newMessage", transformedMessage);
             } catch (error) {
-                console.error("❌ sendMessage error:", error);
+                logger.error(`❌ sendMessage error: ${error instanceof Error ? error.message : String(error)}`);
                 socket.emit("error", "Failed to send message");
             }
         });
@@ -154,7 +172,7 @@ export const initializeSocket = (io: Server) => {
                 
                 io.to(chatId).emit("messagesRead", { chatId, userId });
             } catch (error) {
-                console.error("❌ markAsRead error:", error);
+                logger.error(`❌ markAsRead error: ${error instanceof Error ? error.message : String(error)}`);
             }
         });
 
@@ -167,7 +185,7 @@ export const initializeSocket = (io: Server) => {
 
         socket.on("disconnect", () => {
             cleanupSocketRateLimit(socket.id);
-            console.log(`🔴 Disconnected: ${socket.id} | User: ${userId}`);
+            logger.info(`🔴 Disconnected: ${socket.id} | User: ${userId}`);
         });
     });
 };

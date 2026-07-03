@@ -51,6 +51,10 @@ export const sendPushNotification = async (payload: TPushPayload, options?: TSen
     let failureCount = 0;
     const failedTokens: string[] = [];
 
+    if (!firebaseAdmin) {
+        return { successCount: 0, failureCount: 0 };
+    }
+
     for (let i = 0; i < uniqueTokens.length; i += chunkSize) {
         const chunk = uniqueTokens.slice(i, i + chunkSize);
 

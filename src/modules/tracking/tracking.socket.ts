@@ -2,6 +2,7 @@ import { Server, Socket } from "socket.io";
 import mongoose from "mongoose";
 import { updateLocationHelper } from "./tracking.controller";
 import Order from "../order/order.model";
+import logger from "../../utils/logger";
 
 interface SocketPayload {
     sub: string;
@@ -16,6 +17,23 @@ interface AuthenticatedSocket extends Socket {
 
 // In-memory rate limiter for tracking socket events
 const trackingRateLimits = new Map<string, Map<string, { count: number; resetAt: number }>>();
+
+// Periodic cleanup of stale tracking rate limit entries (every 5 minutes)
+setInterval(() => {
+    const now = Date.now();
+    for (const [socketId, limits] of trackingRateLimits.entries()) {
+        let allExpired = true;
+        for (const limit of limits.values()) {
+            if (now <= limit.resetAt) {
+                allExpired = false;
+                break;
+            }
+        }
+        if (allExpired) {
+            trackingRateLimits.delete(socketId);
+        }
+    }
+}, 5 * 60 * 1000).unref();
 
 function checkTrackingRateLimit(socketId: string, event: string, maxRequests: number, windowMs: number): boolean {
     const now = Date.now();
@@ -82,14 +100,14 @@ export const registerTrackingHandlers = (io: Server, socket: AuthenticatedSocket
 
                 const roomName = `order:track:${orderId}`;
                 socket.join(roomName);
-                console.log(`🔵 Socket ${socket.id} (User: ${userId}) joined tracking room: ${roomName}`);
+                logger.info(`🔵 Socket ${socket.id} (User: ${userId}) joined tracking room: ${roomName}`);
 
                 return callback?.({
                     status: "success",
                     message: `Successfully joined tracking room: ${roomName}`
                 });
             } catch (error) {
-                console.error("❌ joinOrderTrack error:", error);
+                logger.error(`❌ joinOrderTrack error: ${error instanceof Error ? error.message : String(error)}`);
                 socket.emit("error", "Failed to join tracking room");
                 return callback?.({ status: "error", message: "Internal server error" });
             }
@@ -141,7 +159,7 @@ export const registerTrackingHandlers = (io: Server, socket: AuthenticatedSocket
 
                 return callback?.({ status: "success", message: "Location parsed and broadcasted" });
             } catch (error) {
-                console.error("❌ driver:update-location error:", error);
+                logger.error(`❌ driver:update-location error: ${error instanceof Error ? error.message : String(error)}`);
                 socket.emit("error", "Failed to process driver location update");
                 return callback?.({ status: "error", message: "Internal server error" });
             }

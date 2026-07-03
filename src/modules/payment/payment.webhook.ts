@@ -7,6 +7,11 @@ import Order from "../order/order.model";
 import Product from "../product/product.model";
 
 export const stripeWebhookWithOrderComplete = async (req: Request, res: Response) => {
+    if (!stripe) {
+        console.error("❌ Webhook error: Stripe client is not configured");
+        return res.status(500).json({ received: false, error: "Stripe client not configured" });
+    }
+
     const sig = req.headers["stripe-signature"] as string;
 
     let event;
