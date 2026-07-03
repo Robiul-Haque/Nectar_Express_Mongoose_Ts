@@ -14,6 +14,7 @@ import { globalRateLimiter } from './middlewares/rateLimiter.middleware';
 import sendResponse from './utils/sendResponse';
 import { stripeWebhookWithOrderComplete } from './modules/payment/payment.webhook';
 import status from 'http-status';
+import logger from './utils/logger';
 import { env } from './config/env';
 import router from './router/routes';
 
@@ -53,15 +54,18 @@ const io = new Server(server, {
 
 // Scale Socket.IO using Redis Adapter across CPU cluster workers
 if (env.REDIS_URL) {
-    const pubClient = new Redis(env.REDIS_URL);
+    const pubClient = new Redis(env.REDIS_URL, {
+        maxRetriesPerRequest: 3,
+        reconnectOnError: () => true,
+    });
     const subClient = pubClient.duplicate();
 
     pubClient.on("error", (err) => {
-        console.error("❌ Redis (pub) connection error:", err.message);
+        logger.error(`❌ Redis (pub) connection error: ${err.message}`);
     });
 
     subClient.on("error", (err) => {
-        console.error("❌ Redis (sub) connection error:", err.message);
+        logger.error(`❌ Redis (sub) connection error: ${err.message}`);
     });
 
     io.adapter(createAdapter(pubClient, subClient));

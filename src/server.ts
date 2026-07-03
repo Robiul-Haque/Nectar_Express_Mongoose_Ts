@@ -1,11 +1,17 @@
 import mongoose from 'mongoose';
 import cluster from 'cluster';
 import os from 'os';
+import dns from 'dns';
 import { env } from './config/env';
 import logger from './utils/logger';
 import seedAdmin from './seeders/adminSeeder';
 import { verifySMTP } from './utils/sendOtpEmail';
 import { server } from './app';
+
+// Set default DNS resolution order to IPv4 first to prevent EAI_AGAIN DNS timeouts in Docker
+if (dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder('ipv4first');
+}
 
 async function bootstrap() {
     // Start server instantly
@@ -22,8 +28,10 @@ async function bootstrap() {
     mongoose
         .connect(dbUrl)
         .then(async () => {
-            logger.info('✅ DB connected');
-            await seedAdmin();
+            if (!cluster.isWorker || cluster.worker?.id === 1) {
+                logger.info('✅ DB connected');
+                await seedAdmin();
+            }
         })
         .catch((err) => {
             logger.error('❌ DB connection failed', err);
@@ -32,16 +40,35 @@ async function bootstrap() {
 
     // mongoose.set("debug", true);
 
-    // SMTP verify (background — NON BLOCKING)
-    if (env.NODE_ENV !== 'production') verifySMTP();
+    // SMTP verify (background — NON BLOCKING, run only on single process or worker 1)
+    if (env.NODE_ENV !== 'production' && (!cluster.isWorker || cluster.worker?.id === 1)) {
+        verifySMTP();
+    }
+
+    // Global Process Error Handlers
+    process.on('unhandledRejection', (reason: unknown) => {
+        logger.error(`❌ Unhandled Rejection: ${reason instanceof Error ? reason.message : String(reason)}`);
+    });
+
+    process.on('uncaughtException', (error: Error) => {
+        logger.error(`❌ Uncaught Exception: ${error.message}`);
+    });
 
     // Graceful shutdown
-    process.on('SIGTERM', async () => {
-        logger.warn(`Worker ${process.pid} SIGTERM received. Shutting down...`);
-        await mongoose.disconnect();
-        newServer.close();
-        process.exit(0);
-    });
+    const handleShutdown = async (signal: string) => {
+        logger.warn(`Worker ${process.pid} ${signal} received. Shutting down...`);
+        try {
+            await mongoose.disconnect();
+            newServer.close(() => {
+                process.exit(0);
+            });
+        } catch {
+            process.exit(0);
+        }
+    };
+
+    process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+    process.on('SIGINT', () => handleShutdown('SIGINT'));
 }
 
 // Cluster mode to utilize all CPU cores if enabled in configuration
@@ -55,8 +82,10 @@ if (env.USE_CLUSTER && cluster.isPrimary) {
     }
 
     cluster.on('exit', (worker) => {
-        console.warn(`⚠️ Worker process ${worker.process.pid} died. Spawning a replacement...`);
-        cluster.fork();
+        if (!worker.exitedAfterDisconnect) {
+            console.warn(`⚠️ Worker process ${worker.process.pid} died. Spawning a replacement...`);
+            cluster.fork();
+        }
     });
 } else {
     bootstrap();

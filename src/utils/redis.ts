@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import cluster from "cluster";
 import { env } from "../config/env";
 import logger from "./logger";
 
@@ -12,14 +13,18 @@ try {
         });
 
         redis.on("connect", () => {
-            logger.info("⚡ Redis connected successfully");
+            if (!cluster.isWorker || cluster.worker?.id === 1) {
+                logger.info("⚡ Redis connected successfully");
+            }
         });
 
         redis.on("error", (err: any) => {
-            logger.error(`❌ Redis connection failed. API will fallback to Database: ${err}`);
+            logger.error(`❌ Redis connection failed. API will fallback to Database: ${err.message || err}`);
         });
     } else {
-        logger.warn("⚠️ REDIS_URL is not defined. Caching is disabled.");
+        if (!cluster.isWorker || cluster.worker?.id === 1) {
+            logger.warn("⚠️ REDIS_URL is not defined. Caching is disabled.");
+        }
     }
 } catch (error) {
     logger.error(`❌ Redis initialization failed. API will fallback to Database: ${error}`);
