@@ -46,6 +46,13 @@ export const updateProfile = catchAsync(async (req: Request, res: Response) => {
     // Text field validation by Zod
     if (req.body.name) updateData.name = req.body.name;
 
+    // Email update with uniqueness check
+    if (req.body.email && req.body.email !== user.email) {
+        const existingUser = await User.findOne({ email: req.body.email, provider: user.provider, _id: { $ne: userId } }).lean();
+        if (existingUser) return sendResponse(res, status.CONFLICT, "This email is already in use");
+        updateData.email = req.body.email;
+    }
+
     // File upload handled by Multer
     if (req.file) {
         const folderPath = "Nectar/Users";
@@ -72,7 +79,7 @@ export const updateProfile = catchAsync(async (req: Request, res: Response) => {
     }
 
     // Check if at least one field provided
-    if (!Object.keys(updateData).length) return sendResponse(res, status.BAD_REQUEST, "At least one field (name or profile image) must be provided");
+    if (!Object.keys(updateData).length) return sendResponse(res, status.BAD_REQUEST, "At least one field (name, email or profile image) must be provided");
 
     const updatedUser = await User.findByIdAndUpdate(
         userId,
