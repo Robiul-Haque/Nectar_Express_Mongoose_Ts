@@ -231,10 +231,8 @@ export const verifyOTP = catchAsync(async (req: Request, res: Response) => {
     if (new Date() > user.otpExpires) return sendResponse(res, status.BAD_REQUEST, "OTP expired. Please request a new one");
     if (user.otp !== otp) return sendResponse(res, status.BAD_REQUEST, "Invalid OTP");
 
-    // Mark user as verified & remove OTP
+    // Mark user as verified (keep OTP for subsequent reset-password flow)
     user.isVerified = true;
-    user.otp = undefined;
-    user.otpExpires = undefined;
     await user.save();
 
     // Record OTP verification event
@@ -422,7 +420,7 @@ export const forgotPassword = catchAsync(async (req: Request, res: Response) => 
     const { email } = req.body;
 
     // Check if user exists and is email provider
-    const user = await User.findOne({ email, provider: "email" });
+    const user = await User.findOne({ email, provider: "email" }).select("+otp +otpExpires");
     if (!user) return sendResponse(res, status.OK, "If the email exists, a reset token has been sent");
 
     // isActive check
@@ -451,7 +449,17 @@ export const resetPassword = catchAsync(async (req: Request, res: Response) => {
     if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
 
     // Validate OTP
-    if (!user.otp || !user.otpExpires || user.otp !== otp || user.otpExpires < new Date()) return sendResponse(res, status.BAD_REQUEST, "Invalid or expired token");
+    if (!user.otp || !user.otpExpires) {
+        return sendResponse(res, status.BAD_REQUEST, "No OTP request found for this email");
+    }
+
+    if (new Date() > user.otpExpires) {
+        return sendResponse(res, status.BAD_REQUEST, "OTP has expired. Please request a new one");
+    }
+
+    if (user.otp !== otp) {
+        return sendResponse(res, status.BAD_REQUEST, "Invalid OTP");
+    }
 
     // Update password
     user.password = newPassword;
