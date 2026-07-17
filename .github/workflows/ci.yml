@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Show Runner Info
+        run: |
+          echo "Runner is working!"
+          pwd
+          whoami
+          node -v
+          npm -v
