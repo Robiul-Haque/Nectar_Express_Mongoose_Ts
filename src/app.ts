@@ -19,6 +19,7 @@ import status from 'http-status';
 import logger from './utils/logger';
 import { env } from './config/env';
 import router from './router/routes';
+import healthRouter from './modules/health/health.route';
 
 const app = express();
 
@@ -92,27 +93,7 @@ app.set("io", io);
 initializeSocket(io);
 
 // Health check endpoint for Docker / LB readiness probing
-const healthHandler = (req: Request, res: Response) => {
-    const isDbConnected = mongoose.connection.readyState === 1;
-    const isRedisConnected = redis ? redis.status === 'ready' : true;
-    const isHealthy = isDbConnected && isRedisConnected;
-
-    const healthData = {
-        status: isHealthy ? 'UP' : 'DOWN',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        pid: process.pid,
-        services: {
-            database: isDbConnected ? 'connected' : 'disconnected',
-            redis: env.REDIS_URL ? (redis ? redis.status : 'disconnected') : 'disabled',
-        },
-    };
-
-    res.status(isHealthy ? status.OK : status.SERVICE_UNAVAILABLE).json(healthData);
-};
-
-app.get('/health', healthHandler);
-app.get('/api/v1/health', healthHandler);
+app.use('/health', healthRouter);
 
 // Rate limit
 app.use(globalRateLimiter);
