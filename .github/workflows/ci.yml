@@ -18,8 +18,23 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      #####################################################
+      # Checkout
+      #####################################################
+
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
+
+      #####################################################
+      # Install dependencies for workflow (Email Script)
+      #####################################################
+
+      - name: 📦 Install Workflow Dependencies
+        run: npm ci
+
+      #####################################################
+      # Commit Information
+      #####################################################
 
       - name: 📌 Commit Information
         run: |
@@ -30,6 +45,10 @@ jobs:
           echo "Author     : ${{ github.actor }}"
           echo "Message    : ${{ github.event.head_commit.message }}"
           echo "====================================="
+
+      #####################################################
+      # Deploy
+      #####################################################
 
       - name: 🚀 Deploy Backend
         shell: bash
@@ -52,10 +71,10 @@ jobs:
 
           echo ""
           echo "📥 Fetching latest code..."
-          git fetch --all --prune
+          git fetch origin main
 
           echo ""
-          echo "📦 Switching to latest main..."
+          echo "📦 Switching to latest commit..."
           git reset --hard origin/main
 
           echo ""
@@ -108,6 +127,10 @@ jobs:
 
           fi
 
+      #####################################################
+      # Success Email
+      #####################################################
+
       - name: 📧 Success Email
         if: success()
         run: |
@@ -120,10 +143,14 @@ jobs:
             "${{ github.run_id }}"
         env:
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+
+      #####################################################
+      # Failure Email
+      #####################################################
 
       - name: 📧 Failure Email
         if: failure()
@@ -137,7 +164,7 @@ jobs:
             "${{ github.run_id }}"
         env:
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
