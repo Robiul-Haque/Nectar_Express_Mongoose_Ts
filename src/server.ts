@@ -71,10 +71,10 @@ async function connectDBWithRetry(maxRetries = 5, initialDelayMs = 2000): Promis
 }
 
 async function bootstrap() {
-    // 1. Wait for Database connection to establish before accepting HTTP traffic
+    // Wait for Database connection to establish before accepting HTTP traffic
     await connectDBWithRetry();
 
-    // 2. Perform admin seeding and SMTP verification in non-cluster mode
+    // Perform admin seeding and SMTP verification in non-cluster mode
     if (!env.USE_CLUSTER) {
         await seedAdmin();
         if (env.NODE_ENV !== 'production') {
@@ -82,12 +82,12 @@ async function bootstrap() {
         }
     }
 
-    // 3. Start HTTP server only after DB is verified ready
+    // Start HTTP server only after DB is verified ready
     const newServer = server.listen(env.PORT, '0.0.0.0', () => {
         logger.info(`🚀 Worker ${process.pid} running on port ${env.PORT}`);
     });
 
-    // 4. Graceful shutdown sequence: Socket.IO -> HTTP Server -> Redis Clients -> Mongoose -> Exit
+    // Graceful shutdown sequence: Socket.IO -> HTTP Server -> Redis Clients -> Mongoose -> Exit
     let isShuttingDown = false;
 
     const handleShutdown = async (signal: string) => {
@@ -95,7 +95,7 @@ async function bootstrap() {
         isShuttingDown = true;
         logger.warn(`Worker ${process.pid} received ${signal}. Initiating graceful shutdown...`);
 
-        // 10-second unref'd fallback safety timer
+        // second unref'd fallback safety timer
         const forceExitTimeout = setTimeout(() => {
             logger.error(`Worker ${process.pid} forced to exit after 10s shutdown timeout`);
             process.exit(1);
