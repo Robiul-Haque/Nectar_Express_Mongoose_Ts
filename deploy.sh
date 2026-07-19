@@ -14,6 +14,10 @@ echo "📂 Switching to project directory..."
 cd "$APP_DIR"
 
 echo ""
+echo "🌿 Current Branch:"
+git branch --show-current
+
+echo ""
 echo "📥 Fetching latest code from GitHub..."
 git fetch origin main
 
@@ -42,13 +46,10 @@ echo "📊 PM2 Status"
 pm2 list
 
 echo ""
+echo "📌 Latest Commit"
+git log -1 --pretty=format:"%h | %an | %ar | %s"
+
+echo ""
+echo ""
 echo "🎉 Deployment completed successfully!"
 echo "=========================================="
-
-echo ""
-echo "📌 Latest Commit:"
-git log -1 --oneline
-
-echo ""
-echo "🟢 Current Branch:"
-git branch --show-current

@@ -5,36 +5,139 @@ on:
     branches:
       - main
 
+  workflow_dispatch:
+
+concurrency:
+  group: nectar-production
+  cancel-in-progress: true
+
 jobs:
   deploy:
+    name: 🚀 Deploy Backend
     runs-on: self-hosted
+    timeout-minutes: 15
 
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🚀 Deploy Application
+      - name: 📌 Commit Information
         run: |
-          set -e
+          echo "====================================="
+          echo "Repository : ${{ github.repository }}"
+          echo "Branch     : ${{ github.ref_name }}"
+          echo "Commit     : ${{ github.sha }}"
+          echo "Author     : ${{ github.actor }}"
+          echo "Message    : ${{ github.event.head_commit.message }}"
+          echo "====================================="
 
-          APP_DIR=/home/robiul/vps/apps/nectar-api
+      - name: 🚀 Deploy Backend
+        shell: bash
+        run: |
 
-          cd $APP_DIR
+          APP_DIR="/home/robiul/vps/apps/nectar-api"
+          APP_NAME="nectar-api"
 
-          echo "📌 Saving current commit..."
+          echo "====================================="
+          echo "🚀 Starting Deployment..."
+          echo "====================================="
+
+          cd "$APP_DIR"
+
           PREVIOUS_COMMIT=$(git rev-parse HEAD)
 
-          echo "⬇ Fetch latest code..."
-          git fetch origin main
+          echo ""
+          echo "📌 Previous Commit:"
+          echo "$PREVIOUS_COMMIT"
+
+          echo ""
+          echo "📥 Fetching latest code..."
+          git fetch --all --prune
+
+          echo ""
+          echo "📦 Switching to latest main..."
           git reset --hard origin/main
 
-          echo "📦 Installing packages..."
-          npm ci
+          echo ""
+          echo "📦 Installing dependencies..."
 
-          echo "🔍 TypeScript checking..."
-          npm run build
+          if npm ci \
+          && npm run build \
+          && pm2 reload "$APP_NAME" --update-env
+          then
 
-          echo "♻ Reload PM2..."
-          pm2 reload nectar-api --update-env
+              echo ""
+              echo "====================================="
+              echo "✅ Deployment Successful"
+              echo "====================================="
 
-          echo "✅ Deployment Success"
+              echo ""
+              echo "Current Commit:"
+              git rev-parse HEAD
+
+          else
+
+              echo ""
+              echo "====================================="
+              echo "❌ Deployment Failed"
+              echo "====================================="
+
+              echo ""
+              echo "♻️ Starting Rollback..."
+
+              git reset --hard "$PREVIOUS_COMMIT"
+
+              echo ""
+              echo "📦 Restoring dependencies..."
+              npm ci
+
+              echo ""
+              echo "🏗 Building previous version..."
+              npm run build
+
+              echo ""
+              echo "🚀 Reloading PM2..."
+              pm2 reload "$APP_NAME" --update-env
+
+              echo ""
+              echo "====================================="
+              echo "✅ Rollback Completed"
+              echo "====================================="
+
+              exit 1
+
+          fi
+
+      - name: 📧 Success Email
+        if: success()
+        run: |
+          node .github/scripts/send-email.js \
+            success \
+            "${{ github.repository }}" \
+            "${{ github.sha }}" \
+            "${{ github.actor }}" \
+            "${{ github.server_url }}" \
+            "${{ github.run_id }}"
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+
+      - name: 📧 Failure Email
+        if: failure()
+        run: |
+          node .github/scripts/send-email.js \
+            failed \
+            "${{ github.repository }}" \
+            "${{ github.sha }}" \
+            "${{ github.actor }}" \
+            "${{ github.server_url }}" \
+            "${{ github.run_id }}"
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
