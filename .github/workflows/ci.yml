@@ -4,23 +4,37 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-
-concurrency:
-  group: nectar-production
-  cancel-in-progress: true
 
 jobs:
   deploy:
-    name: 🚀 Deploy to Production
     runs-on: self-hosted
-    timeout-minutes: 15
 
     steps:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🚀 Run Deployment Script
+      - name: 🚀 Deploy Application
         run: |
-          cd /home/robiul/vps/apps/nectar-api
-          ./deploy.sh
+          set -e
+
+          APP_DIR=/home/robiul/vps/apps/nectar-api
+
+          cd $APP_DIR
+
+          echo "📌 Saving current commit..."
+          PREVIOUS_COMMIT=$(git rev-parse HEAD)
+
+          echo "⬇ Fetch latest code..."
+          git fetch origin main
+          git reset --hard origin/main
+
+          echo "📦 Installing packages..."
+          npm ci
+
+          echo "🔍 TypeScript checking..."
+          npm run build
+
+          echo "♻ Reload PM2..."
+          pm2 reload nectar-api --update-env
+
+          echo "✅ Deployment Success"
