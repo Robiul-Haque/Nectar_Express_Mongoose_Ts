@@ -1,31 +1,54 @@
 #!/bin/bash
 
-echo "================================="
-echo "🚀 Nectar Backend Deployment Start"
-echo "================================="
+set -e
 
-APP_DIR="/var/www/nectar-backend"
-APP_NAME="nectar-backend"
+echo "=========================================="
+echo "🚀 Nectar Backend Deployment Started"
+echo "=========================================="
 
-echo "📂 Going to project directory..."
-cd $APP_DIR || exit
+APP_DIR="/home/robiul/vps/apps/nectar-api"
+APP_NAME="nectar-api"
 
-echo "🔄 Pulling latest code from GitHub..."
+echo ""
+echo "📂 Switching to project directory..."
+cd "$APP_DIR"
+
+echo ""
+echo "📥 Fetching latest code from GitHub..."
 git fetch origin main
+
+echo ""
+echo "🔄 Resetting to latest commit..."
 git reset --hard origin/main
 
+echo ""
 echo "📦 Installing dependencies..."
-npm install --production
+npm ci
 
-echo "🏗 Building project..."
+echo ""
+echo "🏗️ Building TypeScript project..."
 npm run build
 
-echo "♻️ Reloading PM2 process..."
-pm2 reload $APP_NAME --update-env || pm2 start ecosystem.config.js
+echo ""
+echo "♻️ Reloading PM2 application..."
+pm2 reload "$APP_NAME" --update-env
 
-echo "💾 Saving PM2 state..."
+echo ""
+echo "💾 Saving PM2 process list..."
 pm2 save
 
-echo "================================="
-echo "✅ Deployment Successful!"
-echo "================================="
+echo ""
+echo "📊 PM2 Status"
+pm2 list
+
+echo ""
+echo "🎉 Deployment completed successfully!"
+echo "=========================================="
+
+echo ""
+echo "📌 Latest Commit:"
+git log -1 --oneline
+
+echo ""
+echo "🟢 Current Branch:"
+git branch --show-current
