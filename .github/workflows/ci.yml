@@ -1,4 +1,4 @@
-name: CI
+name: Build & Deploy Nectar Backend
 
 on:
   push:
@@ -6,17 +6,28 @@ on:
       - main
 
 jobs:
-  build:
+  deploy:
     runs-on: self-hosted
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Show Runner Info
+      - name: Deploy
         run: |
-          echo "Runner is working!"
-          pwd
-          whoami
-          node -v
-          npm -v
+          cd /home/robiul/vps/apps/nectar-api
+
+          echo "Fetching latest code..."
+          git fetch origin main
+          git reset --hard origin/main
+
+          echo "Installing dependencies..."
+          npm ci
+
+          echo "Building..."
+          npm run build
+
+          echo "Reloading PM2..."
+          pm2 reload nectar-api --update-env
+
+          echo "Deployment completed successfully."
