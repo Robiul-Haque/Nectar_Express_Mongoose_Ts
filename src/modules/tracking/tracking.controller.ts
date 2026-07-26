@@ -171,13 +171,23 @@ export const assignDriver = catchAsync(async (req: Request, res: Response) => {
     // Notify user about driver assignment via Socket.IO
     const io = req.app.get("io") as Server;
     if (io) {
-        io.to(order.user.toString()).emit("order:driver-assigned", {
+        const userId = order.user.toString();
+        io.to(userId).emit("order:driver-assigned", {
             orderId,
             driver: {
                 name: driverUser.name,
                 avatar: driverUser.avatar?.url || null
             },
             status: "assigned"
+        });
+
+        // Also emit driver:location-updated to the order tracking room so the
+        // tracking screen immediately reflects the driver assignment (status →
+        // "assigned" maps to "driver_assigned" step on the frontend).
+        io.to(`order:track:${orderId}`).emit("driver:location-updated", {
+            orderId,
+            orderStatus: "assigned",
+            updatedAt: new Date(),
         });
     }
 
@@ -254,18 +264,46 @@ export const getDriverLocation = catchAsync(async (req: Request, res: Response) 
 
 /**
  * Get active tracking sequence for an order (Customer / Driver / Admin)
+ *
+ * If the OrderTracking document does not exist yet (order just placed, no driver
+ * assigned), falls back to the Order itself so the frontend can render the
+ * correct initial state instead of showing a 404 error.
  */
 export const getOrderTracking = catchAsync(async (req: Request, res: Response) => {
     const { orderId } = req.params;
     const userId = req.user?.sub;
     const userRole = req.user?.role;
 
-    const tracking = await OrderTracking.findOne({ order: new mongoose.Types.ObjectId(orderId as string) })
+    const orderObjectId = new mongoose.Types.ObjectId(orderId as string);
+
+    const tracking = await OrderTracking.findOne({ order: orderObjectId })
         .populate("driver", "name email avatar location phone")
         .populate("order", "user totalPrice shippingAddress orderStatus");
 
     if (!tracking) {
-        return sendResponse(res, status.NOT_FOUND, "No active tracking details found for this order");
+        // --- NO TRACKING DOCUMENT YET: fall back to Order ---
+        const order = await Order.findById(orderId).select("user orderStatus totalPrice shippingAddress createdAt");
+
+        if (!order) {
+            return sendResponse(res, status.NOT_FOUND, "Order not found");
+        }
+
+        // Authorization check: same as below — user must be customer or admin
+        if (userRole !== "admin" && order.user.toString() !== userId) {
+            return sendResponse(res, status.FORBIDDEN, "You do not have permission to track this order");
+        }
+
+        // Return a lightweight response containing the order's own status.
+        // The frontend uses `data.order.orderStatus` to determine the timeline step.
+        return sendResponse(res, status.OK, "Order tracking not yet initialized", null, {
+            order: order,
+            status: order.orderStatus,
+            driver: null,
+            currentLocation: null,
+            bearing: null,
+            speed: null,
+            routePoints: [],
+        });
     }
 
     const orderDoc = tracking.order as any;
