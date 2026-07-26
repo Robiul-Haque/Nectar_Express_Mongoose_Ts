@@ -81,13 +81,28 @@ interface AuthenticatedSocket extends Socket {
 export const initializeSocket = (io: Server) => {
     io.use((socket: AuthenticatedSocket, next) => {
         try {
-            const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(" ")[1];
+            // Extract token from auth or Authorization header, with Bearer prefix stripping
+            const authToken = socket.handshake.auth?.token;
+            const headerAuth = socket.handshake.headers?.authorization;
+            let token: string | undefined;
+
+            if (authToken && typeof authToken === 'string') {
+                token = authToken.startsWith('Bearer ')
+                    ? authToken.slice(7).trim()
+                    : authToken.trim();
+            } else if (headerAuth) {
+                token = headerAuth.startsWith('Bearer ')
+                    ? headerAuth.slice(7).trim()
+                    : headerAuth.trim();
+            }
+
             if (!token) return next(new Error("Authentication token required"));
 
             const payload = jwt.verify(token, env.JWT_ACCESS_TOKEN) as SocketPayload;
             socket.user = payload;
             next();
         } catch (error) {
+            logger.warn(`[Socket] Auth error: ${error instanceof Error ? error.message : String(error)}`);
             next(new Error("Invalid or expired token"));
         }
     });

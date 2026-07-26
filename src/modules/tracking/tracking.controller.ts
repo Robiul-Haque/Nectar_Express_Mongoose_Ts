@@ -80,6 +80,16 @@ export const updateLocationHelper = async (
                     status: tracking.status,
                     updatedAt: new Date()
                 });
+
+                // Also emit driver:location-updated for mobile app frontend compatibility
+                io.to(`order:track:${orderId}`).emit("driver:location-updated", {
+                    orderId,
+                    location: { latitude, longitude },
+                    bearing: bearing || 0,
+                    speed: speed || 0,
+                    orderStatus: tracking.status,
+                    updatedAt: new Date()
+                });
             }
         }
     }
@@ -211,6 +221,13 @@ export const updateTrackingStatus = catchAsync(async (req: Request, res: Respons
         io.to(`order:track:${orderId}`).emit("order:status-update", {
             orderId,
             status: trackingStatus,
+            estimatedDeliveryTime: tracking.estimatedDeliveryTime
+        });
+
+        // Also emit driver:location-updated with orderStatus for mobile app frontend compatibility
+        io.to(`order:track:${orderId}`).emit("driver:location-updated", {
+            orderId,
+            orderStatus: trackingStatus,
             estimatedDeliveryTime: tracking.estimatedDeliveryTime
         });
     }
