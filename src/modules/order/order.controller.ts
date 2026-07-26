@@ -221,6 +221,22 @@ export const cancelOrder = catchAsync(async (req: Request, res: Response) => {
         await order.save({ session });
         await session.commitTransaction();
 
+        // Real-time broadcast: notify connected clients that the order was cancelled
+        const io = req.app.get("io") as import("socket.io").Server;
+        if (io && order.user) {
+            const userId = order.user.toString();
+            io.to(userId).emit("order:status-update", {
+                orderId: order._id,
+                orderStatus: "cancelled",
+                updatedAt: new Date(),
+            });
+            io.to(`order:track:${order._id}`).emit("driver:location-updated", {
+                orderId: order._id,
+                orderStatus: "cancelled",
+                updatedAt: new Date(),
+            });
+        }
+
         return sendResponse(res, status.OK, "Order cancelled successfully", null, order);
     } catch (error) {
         await session.abortTransaction();
@@ -266,6 +282,29 @@ export const updateOrderStatus = catchAsync(async (req: Request, res: Response) 
 
     // Send push notification (non-blocking)
     if (userId) sendPushNotification({ title: "📦 Order Update", body: message, image }, { userIds: [userId] }).catch(err => console.error("Push Notification Error:", err));
+
+    // --- REAL-TIME SOCKET BROADCAST ---
+    // Emit event to the user's personal room so the orders list screen
+    // (which subscribes to order updates) can immediately reflect the change.
+    // The frontend connects to socket.io and joins the user's room identified
+    // by their user ID (see socketUtils.ts: socket.join(userId)).
+    const io = req.app.get("io") as import("socket.io").Server;
+    if (io && userId) {
+        io.to(userId).emit("order:status-update", {
+            orderId: id,
+            orderStatus: newStatus,
+            updatedAt: new Date(),
+        });
+
+        // Also broadcast to the order tracking room so the tracking screen
+        // receives the update immediately (e.g., when status changes from
+        // "pending" to "confirmed" or "shipped").
+        io.to(`order:track:${id}`).emit("driver:location-updated", {
+            orderId: id,
+            orderStatus: newStatus,
+            updatedAt: new Date(),
+        });
+    }
 
     return sendResponse(res, status.OK, "Order status updated successfully", null, order);
 });
