@@ -10,6 +10,12 @@ export const toggleBookmarkSchema = z.object({
 export const getBookmarksSchema = z.object({
     query: z.object({
         page: z.string().optional().transform((v) => (v ? Number(v) : 1)).refine((v) => v > 0, { message: "Page must be greater than 0" }),
-        limit: z.string().optional().transform((v) => (v ? Number(v) : 10)).refine((v) => v > 0 && v <= 100, { message: "Limit must be between 1 and 100" })
+        limit: z.string().optional().transform((v) => (v ? Number(v) : 100)).refine((v) => v > 0 && v <= 100, { message: "Limit must be between 1 and 100" })
+    }).strict()
+});
+
+export const checkBookmarkSchema = z.object({
+    params: z.object({
+        productId: objectIdSchema
     }).strict()
 });

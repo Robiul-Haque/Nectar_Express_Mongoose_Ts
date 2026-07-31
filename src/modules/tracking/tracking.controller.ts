@@ -278,11 +278,11 @@ export const getOrderTracking = catchAsync(async (req: Request, res: Response) =
 
     const tracking = await OrderTracking.findOne({ order: orderObjectId })
         .populate("driver", "name email avatar location phone")
-        .populate("order", "user totalPrice shippingAddress orderStatus");
+        .populate("order", "user totalPrice totalQuantity shippingAddress orderStatus items createdAt");
 
     if (!tracking) {
         // --- NO TRACKING DOCUMENT YET: fall back to Order ---
-        const order = await Order.findById(orderId).select("user orderStatus totalPrice shippingAddress createdAt");
+        const order = await Order.findById(orderId).select("user orderStatus totalPrice totalQuantity shippingAddress createdAt items");
 
         if (!order) {
             return sendResponse(res, status.NOT_FOUND, "Order not found");
