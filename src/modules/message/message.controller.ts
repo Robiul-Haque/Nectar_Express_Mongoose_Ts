@@ -54,6 +54,7 @@ export const sendMessage = catchAsync(async (req: Request, res: Response) => {
 
     const io = req.app.get("io");
     io?.to(chatId).emit("newMessage", transformedMessage);
+    io?.to(chatId).emit("message:new", transformedMessage);
 
     return sendResponse(res, status.OK, "Message sent", null, transformedMessage);
 });

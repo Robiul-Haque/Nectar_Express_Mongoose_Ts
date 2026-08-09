@@ -112,16 +112,23 @@ export const initializeSocket = (io: Server) => {
         logger.info(`✅ Socket Connected: ${socket.id} | User: ${userId}`);
         if (userId) socket.join(userId);
 
-        socket.on("joinRoom", ({ chatId }: { chatId: string }) => {
+        const handleJoinRoom = ({ chatId }: { chatId: string }) => {
             if (!checkSocketRateLimit(socket.id, "joinRoom")) {
                 return socket.emit("error", "Rate limit exceeded. Please slow down.");
             }
             if (!mongoose.Types.ObjectId.isValid(chatId)) return socket.emit("error", "Invalid chatId");
             logger.info(`🔵 Join Room: ${chatId} | Socket: ${socket.id}`);
             socket.join(chatId);
-        });
+        };
 
-        socket.on("sendMessage", async ({ chatId, content, type = "text" }: { chatId: string; content: string; type?: "text" | "image"; }) => {
+        const handleLeaveRoom = ({ chatId }: { chatId: string }) => {
+            if (chatId && mongoose.Types.ObjectId.isValid(chatId)) {
+                logger.info(`⚪ Leave Room: ${chatId} | Socket: ${socket.id}`);
+                socket.leave(chatId);
+            }
+        };
+
+        const handleSendMessage = async ({ chatId, content, type = "text" }: { chatId: string; content: string; type?: "text" | "image"; }) => {
             try {
                 if (!checkSocketRateLimit(socket.id, "sendMessage")) {
                     return socket.emit("error", "Rate limit exceeded. Please slow down.");
@@ -167,18 +174,20 @@ export const initializeSocket = (io: Server) => {
                 };
 
                 io.to(chatId).emit("newMessage", transformedMessage);
+                io.to(chatId).emit("message:new", transformedMessage);
             } catch (error) {
                 logger.error(`❌ sendMessage error: ${error instanceof Error ? error.message : String(error)}`);
                 socket.emit("error", "Failed to send message");
             }
-        });
+        };
 
-        socket.on("markAsRead", async (chatId: string) => {
+        const handleMarkAsRead = async (chatIdParam: string | { chatId: string }) => {
             try {
+                const chatId = typeof chatIdParam === "string" ? chatIdParam : chatIdParam?.chatId;
                 if (!checkSocketRateLimit(socket.id, "markAsRead")) {
                     return socket.emit("error", "Rate limit exceeded. Please slow down.");
                 }
-                if (!userId || !mongoose.Types.ObjectId.isValid(chatId)) return;
+                if (!userId || !chatId || !mongoose.Types.ObjectId.isValid(chatId)) return;
                 
                 await Message.updateMany(
                     { chatId, readBy: { $ne: userId } }, 
@@ -186,8 +195,32 @@ export const initializeSocket = (io: Server) => {
                 );
                 
                 io.to(chatId).emit("messagesRead", { chatId, userId });
+                io.to(chatId).emit("message:read", { chatId, userId });
             } catch (error) {
                 logger.error(`❌ markAsRead error: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        };
+
+        // Legacy events
+        socket.on("joinRoom", handleJoinRoom);
+        socket.on("sendMessage", handleSendMessage);
+        socket.on("markAsRead", handleMarkAsRead);
+
+        // Standard support chat events
+        socket.on("conversation:join", handleJoinRoom);
+        socket.on("conversation:leave", handleLeaveRoom);
+        socket.on("message:send", handleSendMessage);
+        socket.on("message:read", handleMarkAsRead);
+
+        socket.on("typing:start", ({ chatId }: { chatId: string }) => {
+            if (chatId && userId) {
+                socket.to(chatId).emit("typing:start", { chatId, userId });
+            }
+        });
+
+        socket.on("typing:stop", ({ chatId }: { chatId: string }) => {
+            if (chatId && userId) {
+                socket.to(chatId).emit("typing:stop", { chatId, userId });
             }
         });
 

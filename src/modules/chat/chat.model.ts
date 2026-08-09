@@ -17,6 +17,18 @@ const ChatSchema = new Schema<IChat>(
             type: Date,
             default: Date.now,
             index: true
+        },
+        status: {
+            type: String,
+            enum: ["open", "resolved"],
+            default: "open",
+            index: true
+        },
+        chatType: {
+            type: String,
+            enum: ["customer_support", "driver_support", "direct"],
+            default: "customer_support",
+            index: true
         }
     },
     {
@@ -27,6 +39,7 @@ const ChatSchema = new Schema<IChat>(
 
 ChatSchema.index({ participants: 1 });
 ChatSchema.index({ lastUpdated: -1 });
+ChatSchema.index({ chatType: 1, status: 1, lastUpdated: -1 });
 
 const Chat = mongoose.model<IChat>("Chat", ChatSchema);
 export default Chat;

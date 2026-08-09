@@ -27,7 +27,7 @@ export const getMessagesSchema = z.object({
     query: z.object({
         page: z.string().optional(),
         limit: z.string().optional()
-    })
+    }).optional().default({})
 });
 
 export const deleteMessageSchema = z.object({

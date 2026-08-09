@@ -16,6 +16,7 @@ import sliderRouter from "../modules/slider/slider.route";
 import dashboardRouter from "../modules/dashboard/dashboard.route";
 import trackingRouter from "../modules/tracking/tracking.route";
 import adminCustomerRouter from "../modules/adminCustomer/adminCustomer.route";
+import supportRouter from "../modules/chat/support.router";
 
 
 const router = Router();
@@ -33,6 +34,7 @@ router.use("/payment", paymentRoute);
 router.use("/notification", notificationRoute);
 router.use("/chat", chatRouter);
 router.use("/message", messageRoute);
+router.use("/support/conversations", supportRouter);
 router.use("/slider", sliderRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/tracking", trackingRouter);
