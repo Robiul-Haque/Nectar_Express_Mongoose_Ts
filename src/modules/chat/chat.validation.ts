@@ -5,10 +5,10 @@ export const objectIdSchema = z.string().refine((val) => mongoose.Types.ObjectId
 
 export const optionalObjectIdSchema = z
     .string()
-    .optional()
     .nullable()
     .transform((val) => (val === "" || val === null ? undefined : val))
-    .refine((val) => !val || mongoose.Types.ObjectId.isValid(val), { message: "Invalid ObjectId" });
+    .refine((val) => !val || mongoose.Types.ObjectId.isValid(val), { message: "Invalid ObjectId" })
+    .optional();
 
 export const createChatSchema = z.object({
     body: z.object({
@@ -24,8 +24,8 @@ export const chatIdParamSchema = z.object({
 
 export const getChatsQuerySchema = z.object({
     query: z.object({
-        page: z.string().optional().refine((val) => !val || !isNaN(Number(val)), { message: "Page must be a number" }),
-        limit: z.string().optional().refine((val) => !val || !isNaN(Number(val)), { message: "Limit must be a number" }),
+        page: z.string().refine((val) => !val || !isNaN(Number(val)), { message: "Page must be a number" }).optional(),
+        limit: z.string().refine((val) => !val || !isNaN(Number(val)), { message: "Limit must be a number" }).optional(),
         chatType: z.enum(["customer_support", "driver_support", "direct"]).optional(),
         status: z.enum(["open", "resolved"]).optional(),
         search: z.string().optional()
