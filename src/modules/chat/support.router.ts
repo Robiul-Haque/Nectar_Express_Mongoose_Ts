@@ -43,7 +43,8 @@ router.post("/:id/messages", authenticate(["user", "admin", "driver"]), upload.s
 // PATCH /api/v1/support/conversations/:id/read
 router.patch("/:id/read", authenticate(["user", "admin", "driver"]), adaptChatIdParam, validateRequest(markAsReadSchema), markAsRead);
 
-// PATCH /api/v1/support/conversations/:id/status
+// PATCH /api/v1/support/conversations/:id/status & /api/v1/support/conversations/:id
 router.patch("/:id/status", authenticate(["admin"]), adaptChatIdParam, validateRequest(updateChatStatusSchema), updateChatStatus);
+router.patch("/:id", authenticate(["admin"]), adaptChatIdParam, validateRequest(updateChatStatusSchema), updateChatStatus);
 
 export default router;

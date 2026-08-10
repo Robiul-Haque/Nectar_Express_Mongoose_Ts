@@ -6,6 +6,7 @@ import User from "../user/user.model";
 import Order from "../order/order.model";
 import status from "http-status";
 import sendResponse from "../../utils/sendResponse";
+import { isUserOnline } from "../../utils/socketUtils";
 
 export const createChat = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user!.sub;
@@ -58,7 +59,13 @@ export const getMyChats = catchAsync(async (req: Request, res: Response) => {
 
     if (userRole === "admin") {
         // Admin can view all chats or filter by chatType/status
-        if (chatType) filter.chatType = chatType;
+        if (chatType) {
+            if (chatType === "customer_support") {
+                filter.$or = [{ chatType: "customer_support" }, { chatType: { $exists: false } }, { chatType: null }];
+            } else {
+                filter.chatType = chatType;
+            }
+        }
         if (chatStatus) filter.status = chatStatus;
     } else {
         // Normal user/driver sees their own chats
@@ -106,14 +113,16 @@ export const getMyChats = catchAsync(async (req: Request, res: Response) => {
             .filter((p: any) => p && p._id && p._id.toString() !== userId)
             .map((p: any) => ({
                 ...p,
-                avatar: p.avatar?.url || null
+                avatar: p.avatar?.url || null,
+                isOnline: p._id ? isUserOnline(p._id.toString()) : false
             }));
 
         return {
             ...chat,
             participants: otherParticipants.length > 0 ? otherParticipants : (chat.participants || []).map((p: any) => ({
                 ...p,
-                avatar: p?.avatar?.url || null
+                avatar: p?.avatar?.url || null,
+                isOnline: p?._id ? isUserOnline(p._id.toString()) : false
             })),
             unreadCount: unreadMap.get(chat._id.toString()) || 0
         };
@@ -158,7 +167,8 @@ export const getChatById = catchAsync(async (req: Request, res: Response) => {
 
     const formattedParticipants = chat.participants.map((p: any) => ({
         ...p,
-        avatar: p.avatar?.url || null
+        avatar: p.avatar?.url || null,
+        isOnline: p._id ? isUserOnline(p._id.toString()) : false
     }));
 
     return sendResponse(res, status.OK, "Chat details fetched", null, {
@@ -184,7 +194,12 @@ export const updateChatStatus = catchAsync(async (req: Request, res: Response) =
     }
 
     const io = req.app.get("io");
-    io?.to(chatId).emit("conversation:status", { chatId, status: newStatus });
+    if (io) {
+        io.emit("conversation:status", { chatId, status: newStatus });
+        io.emit("chatStatusUpdated", { chatId, status: newStatus });
+        io.to(chatId).emit("conversation:status", { chatId, status: newStatus });
+        io.to(chatId).emit("chatStatusUpdated", { chatId, status: newStatus });
+    }
 
     return sendResponse(res, status.OK, `Chat status updated to ${newStatus}`, null, chat);
 });

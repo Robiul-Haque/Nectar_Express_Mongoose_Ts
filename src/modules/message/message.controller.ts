@@ -8,12 +8,13 @@ import Message from "./message.model";
 
 export const sendMessage = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user!.sub;
+    const userRole = req.user!.role;
     const { chatId, content, type = "text" } = req.body;
     const fileBuffer = req.file?.buffer;
 
     const chat = await Chat.findById(chatId);
     if (!chat) return sendResponse(res, 404, "Chat not found");
-    if (!chat.participants.some(p => p.toString() === userId)) return sendResponse(res, status.FORBIDDEN, "Unauthorized");
+    if (userRole !== "admin" && !chat.participants.some(p => p.toString() === userId)) return sendResponse(res, status.FORBIDDEN, "Unauthorized");
 
     let imageData = null;
 
@@ -62,6 +63,7 @@ export const sendMessage = catchAsync(async (req: Request, res: Response) => {
 
 export const getChatMessages = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user!.sub;
+    const userRole = req.user!.role;
     const { chatId } = req.params;
 
     const page = Math.max(Number(req.query.page) || 1, 1);
@@ -70,7 +72,7 @@ export const getChatMessages = catchAsync(async (req: Request, res: Response) =>
     const chat = await Chat.findById(chatId);
     if (!chat) return sendResponse(res, 404, "Chat not found");
 
-    if (!chat.participants.includes(userId as any)) return sendResponse(res, status.FORBIDDEN, "Unauthorized");
+    if (userRole !== "admin" && !chat.participants.some(p => p.toString() === userId)) return sendResponse(res, status.FORBIDDEN, "Unauthorized");
 
     const messages = await Message.find({ chatId }).populate("sender", "name email role avatar").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit);
     const total = await Message.countDocuments({ chatId });
@@ -87,7 +89,7 @@ export const getChatMessages = catchAsync(async (req: Request, res: Response) =>
         };
     });
 
-    return sendResponse(res, status.OK, "Messages fetched", { page, limit, total }, { data: transformedMessages });
+    return sendResponse(res, status.OK, "Messages fetched", { page, limit, total }, transformedMessages);
 });
 
 export const deleteMessageAdmin = catchAsync(async (req: Request, res: Response) => {
