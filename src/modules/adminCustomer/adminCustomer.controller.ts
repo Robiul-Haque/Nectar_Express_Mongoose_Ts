@@ -12,6 +12,7 @@ import Message from "../message/message.model";
 import LoginHistory from "./loginHistory.model";
 import AdminNote from "./adminNote.model";
 import redis from "../../utils/redis";
+import { isUserOnline } from "../../utils/socketUtils";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -86,6 +87,7 @@ export const getCustomerDetails = catchAsync(async (req: Request, res: Response)
         // ── Status ────────────────────────────────────────────────────────────
         status: {
             isActive: user.isActive,
+            isOnline: isUserOnline((user as any)._id.toString()),
             isVerified: user.isVerified,
             lastLoginAt: user.lastLoginAt || null,
             lastKnownIp: (user as any).lastKnownIp || null

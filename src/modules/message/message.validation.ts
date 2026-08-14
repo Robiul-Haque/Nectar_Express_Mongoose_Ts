@@ -8,7 +8,9 @@ export const sendMessageSchema = z.object({
         .object({
             chatId: objectIdSchema,
             content: z.string().trim().max(2000, "Message too long").optional(),
-            type: z.enum(["text", "image"]).default("text")
+            type: z.enum(["text", "image"]).default("text"),
+            image: z.any().optional(),
+            imageBase64: z.string().optional()
         })
         .refine(
             (data) => {

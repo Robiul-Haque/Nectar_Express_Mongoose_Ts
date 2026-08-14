@@ -9,7 +9,7 @@ import Message from "./message.model";
 export const sendMessage = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user!.sub;
     const userRole = req.user!.role;
-    const { chatId, content, type = "text" } = req.body;
+    const { chatId, content, type = "text", imageBase64, image: imageField } = req.body;
     const fileBuffer = req.file?.buffer;
 
     const chat = await Chat.findById(chatId);
@@ -19,10 +19,18 @@ export const sendMessage = catchAsync(async (req: Request, res: Response) => {
     let imageData = null;
 
     if (type === "image") {
-        if (!fileBuffer) throw new Error("Image file required");
-
-        const upload = await uploadImageStream(fileBuffer, { folder: "chat_messages" });
-        imageData = { url: upload.secure_url, publicId: upload.public_id };
+        if (fileBuffer) {
+            const upload = await uploadImageStream(fileBuffer, { folder: "chat_messages" });
+            imageData = { url: upload.secure_url, publicId: upload.public_id };
+        } else if (imageBase64 || (typeof imageField === "string" && imageField.length > 50)) {
+            const rawBase64 = imageBase64 || imageField;
+            const cleanBase64 = rawBase64.replace(/^data:image\/\w+;base64,/, "");
+            const buffer = Buffer.from(cleanBase64, "base64");
+            const upload = await uploadImageStream(buffer, { folder: "chat_messages" });
+            imageData = { url: upload.secure_url, publicId: upload.public_id };
+        } else {
+            return sendResponse(res, status.BAD_REQUEST, "Image file or base64 data required");
+        }
     }
 
     if (type === "text" && !content?.trim()) return sendResponse(res, status.BAD_REQUEST, "Text content cannot be empty");
@@ -30,7 +38,7 @@ export const sendMessage = catchAsync(async (req: Request, res: Response) => {
     const message = await Message.create({
         chatId,
         sender: userId,
-        content: type === "text" ? content.trim() : "📷 Image",
+        content: type === "text" ? content.trim() : (content?.trim() || "📷 Image"),
         type,
         image: imageData,
         readBy: [userId]
@@ -54,12 +62,17 @@ export const sendMessage = catchAsync(async (req: Request, res: Response) => {
     };
 
     const io = req.app.get("io");
-    io?.to(chatId).emit("newMessage", transformedMessage);
-    io?.to(chatId).emit("message:new", transformedMessage);
+    const chatIdStr = chatId.toString();
+    io?.to(chatIdStr).emit("newMessage", transformedMessage);
+    io?.to(chatIdStr).emit("message:new", transformedMessage);
+
+    chat.participants.forEach((p: any) => {
+        io?.to(p.toString()).emit("newMessage", transformedMessage);
+        io?.to(p.toString()).emit("message:new", transformedMessage);
+    });
 
     return sendResponse(res, status.OK, "Message sent", null, transformedMessage);
 });
-
 
 export const getChatMessages = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user!.sub;
@@ -97,13 +110,38 @@ export const deleteMessageAdmin = catchAsync(async (req: Request, res: Response)
 
     const message = await Message.findById(messageId);
     if (!message) return sendResponse(res, status.NOT_FOUND, "Message not found");
-    if (message.image?.publicId) await deleteImage(message.image.publicId);
-    await message.deleteOne();
+
+    if (message.image?.publicId) {
+        try {
+            await deleteImage(message.image.publicId);
+        } catch (e) {
+            console.error("Cloudinary delete error:", e);
+        }
+    }
+
+    const chatIdStr = message.chatId.toString();
+    await Message.findByIdAndDelete(messageId);
+
+    // Update chat's lastMessage in MongoDB to the latest remaining message
+    const latestMsg = await Message.findOne({ chatId: message.chatId }).sort({ createdAt: -1 });
+    await Chat.findByIdAndUpdate(message.chatId, {
+        lastMessage: latestMsg ? latestMsg.content : "No messages yet",
+        lastUpdated: latestMsg ? latestMsg.createdAt : new Date()
+    });
 
     const io = req.app.get("io");
-    io?.to(message.chatId.toString()).emit("messageDeleted", { messageId });
+    io?.to(chatIdStr).emit("messageDeleted", { messageId, chatId: chatIdStr });
+    io?.to(chatIdStr).emit("message:deleted", { messageId, chatId: chatIdStr });
 
-    return sendResponse(res, status.OK, "Message deleted", { messageId });
+    const chat = await Chat.findById(message.chatId);
+    if (chat && chat.participants) {
+        chat.participants.forEach((p: any) => {
+            io?.to(p.toString()).emit("messageDeleted", { messageId, chatId: chatIdStr });
+            io?.to(p.toString()).emit("message:deleted", { messageId, chatId: chatIdStr });
+        });
+    }
+
+    return sendResponse(res, status.OK, "Message permanently deleted", { messageId });
 });
 
 export const markAsRead = catchAsync(async (req: Request, res: Response) => {

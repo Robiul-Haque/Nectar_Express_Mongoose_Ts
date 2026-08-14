@@ -7,13 +7,30 @@ import Chat from "../modules/chat/chat.model";
 import Message from "../modules/message/message.model";
 import { registerTrackingHandlers } from "../modules/tracking/tracking.socket";
 
-// In-memory online user connection tracker (userId -> Set of active socket IDs)
+// In-memory global online user connection tracker (userId -> Set of active socket IDs)
 const onlineUsersMap = new Map<string, Set<string>>();
+
+// In-memory active room participants tracker
+// chatId -> Set of active socket IDs
+const roomActiveAdminsMap = new Map<string, Set<string>>();
+const roomActiveUsersMap = new Map<string, Set<string>>();
 
 export const isUserOnline = (userId: string): boolean => {
     if (!userId) return false;
     const socketSet = onlineUsersMap.get(userId.toString());
     return Boolean(socketSet && socketSet.size > 0);
+};
+
+export const isRoomAdminActive = (chatId: string): boolean => {
+    if (!chatId) return false;
+    const adminSet = roomActiveAdminsMap.get(chatId.toString());
+    return Boolean(adminSet && adminSet.size > 0);
+};
+
+export const isRoomUserActive = (chatId: string): boolean => {
+    if (!chatId) return false;
+    const userSet = roomActiveUsersMap.get(chatId.toString());
+    return Boolean(userSet && userSet.size > 0);
 };
 
 // In-memory socket rate limiter (per socket, per event type)
@@ -37,16 +54,16 @@ setInterval(() => {
 }, 5 * 60 * 1000).unref();
 
 const SOCKET_RATE_LIMITS: Record<string, { maxRequests: number; windowMs: number }> = {
-    "sendMessage": { maxRequests: 30, windowMs: 60000 },       // 30 msg/min
-    "driver:update-location": { maxRequests: 60, windowMs: 60000 }, // 60 updates/min
-    "joinOrderTrack": { maxRequests: 20, windowMs: 60000 },    // 20 joins/min
-    "markAsRead": { maxRequests: 60, windowMs: 60000 },        // 60 reads/min
-    "joinRoom": { maxRequests: 30, windowMs: 60000 },          // 30 joins/min
+    "sendMessage": { maxRequests: 30, windowMs: 60000 },
+    "driver:update-location": { maxRequests: 60, windowMs: 60000 },
+    "joinOrderTrack": { maxRequests: 20, windowMs: 60000 },
+    "markAsRead": { maxRequests: 60, windowMs: 60000 },
+    "joinRoom": { maxRequests: 40, windowMs: 60000 },
 };
 
 function checkSocketRateLimit(socketId: string, event: string): boolean {
     const config = SOCKET_RATE_LIMITS[event];
-    if (!config) return true; // no limit for this event
+    if (!config) return true;
 
     const now = Date.now();
     let socketLimits = socketRateLimits.get(socketId);
@@ -65,13 +82,12 @@ function checkSocketRateLimit(socketId: string, event: string): boolean {
     eventLimit.count++;
 
     if (eventLimit.count > config.maxRequests) {
-        return false; // rate limited
+        return false;
     }
 
     return true;
 }
 
-// Cleanup rate limit data when socket disconnects
 function cleanupSocketRateLimit(socketId: string) {
     socketRateLimits.delete(socketId);
 }
@@ -85,12 +101,12 @@ interface SocketPayload extends JwtPayload {
 
 interface AuthenticatedSocket extends Socket {
     user?: SocketPayload;
+    activeRooms?: Set<string>;
 }
 
 export const initializeSocket = (io: Server) => {
     io.use((socket: AuthenticatedSocket, next) => {
         try {
-            // Extract token from auth or Authorization header, with Bearer prefix stripping
             const authToken = socket.handshake.auth?.token;
             const headerAuth = socket.handshake.headers?.authorization;
             let token: string | undefined;
@@ -109,6 +125,7 @@ export const initializeSocket = (io: Server) => {
 
             const payload = jwt.verify(token, env.JWT_ACCESS_TOKEN) as SocketPayload;
             socket.user = payload;
+            socket.activeRooms = new Set<string>();
             next();
         } catch (error) {
             logger.warn(`[Socket] Auth error: ${error instanceof Error ? error.message : String(error)}`);
@@ -121,6 +138,7 @@ export const initializeSocket = (io: Server) => {
         const userIdStr = userId ? userId.toString() : null;
         const userRole = socket.user?.role;
         logger.info(`✅ Socket Connected: ${socket.id} | User: ${userIdStr} | Role: ${userRole}`);
+
         if (userIdStr) {
             socket.join(userIdStr);
 
@@ -155,11 +173,12 @@ export const initializeSocket = (io: Server) => {
             }
         });
 
-        const handleJoinRoom = async ({ chatId }: { chatId: string }) => {
+        const handleJoinRoom = async (data: any) => {
+            const chatId = typeof data === "string" ? data : data?.chatId;
             if (!checkSocketRateLimit(socket.id, "joinRoom")) {
                 return socket.emit("error", "Rate limit exceeded. Please slow down.");
             }
-            if (!mongoose.Types.ObjectId.isValid(chatId)) return socket.emit("error", "Invalid chatId");
+            if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) return socket.emit("error", "Invalid chatId");
 
             if (userRole !== "admin") {
                 const chat = await Chat.findById(chatId).select("participants").lean();
@@ -168,26 +187,77 @@ export const initializeSocket = (io: Server) => {
                 }
             }
 
-            logger.info(`🔵 Join Room: ${chatId} | Socket: ${socket.id}`);
-            socket.join(chatId);
+            const chatIdStr = chatId.toString();
+            socket.join(chatIdStr);
+            socket.activeRooms?.add(chatIdStr);
 
-            if (userIdStr) {
-                let userSockets = onlineUsersMap.get(userIdStr);
+            if (userRole === "admin") {
+                let adminSockets = roomActiveAdminsMap.get(chatIdStr);
+                if (!adminSockets) {
+                    adminSockets = new Set();
+                    roomActiveAdminsMap.set(chatIdStr, adminSockets);
+                }
+                adminSockets.add(socket.id);
+
+                logger.info(`🔵 Admin Joined Room: ${chatIdStr} | Socket: ${socket.id}`);
+                io.to(chatIdStr).emit("admin:status", { chatId: chatIdStr, isOnline: true });
+                io.to(chatIdStr).emit("room:presence", {
+                    chatId: chatIdStr,
+                    isAdminOnline: true,
+                    isUserOnline: isRoomUserActive(chatIdStr),
+                });
+            } else {
+                let userSockets = roomActiveUsersMap.get(chatIdStr);
                 if (!userSockets) {
                     userSockets = new Set();
-                    onlineUsersMap.set(userIdStr, userSockets);
+                    roomActiveUsersMap.set(chatIdStr, userSockets);
                 }
                 userSockets.add(socket.id);
 
-                io.emit("userStatusChanged", { userId: userIdStr, isOnline: true });
-                io.emit("user:online", { userId: userIdStr });
+                logger.info(`🔵 Customer Joined Room: ${chatIdStr} | Socket: ${socket.id}`);
+                const hasAdmin = isRoomAdminActive(chatIdStr);
+                socket.emit("admin:status", { chatId: chatIdStr, isOnline: hasAdmin });
+                socket.emit("room:presence", {
+                    chatId: chatIdStr,
+                    isAdminOnline: hasAdmin,
+                    isUserOnline: true,
+                });
+                io.to(chatIdStr).emit("userStatusChanged", { chatId: chatIdStr, userId: userIdStr, isOnline: true });
             }
         };
 
-        const handleLeaveRoom = ({ chatId }: { chatId: string }) => {
-            if (chatId && mongoose.Types.ObjectId.isValid(chatId)) {
-                logger.info(`⚪ Leave Room: ${chatId} | Socket: ${socket.id}`);
-                socket.leave(chatId);
+        const handleLeaveRoom = (data: any) => {
+            const chatId = typeof data === "string" ? data : data?.chatId;
+            if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) return;
+            const chatIdStr = chatId.toString();
+
+            logger.info(`⚪ Leave Room: ${chatIdStr} | Socket: ${socket.id}`);
+            socket.leave(chatIdStr);
+            socket.activeRooms?.delete(chatIdStr);
+
+            if (userRole === "admin") {
+                const adminSockets = roomActiveAdminsMap.get(chatIdStr);
+                if (adminSockets) {
+                    adminSockets.delete(socket.id);
+                    if (adminSockets.size === 0) {
+                        roomActiveAdminsMap.delete(chatIdStr);
+                        io.to(chatIdStr).emit("admin:status", { chatId: chatIdStr, isOnline: false });
+                        io.to(chatIdStr).emit("room:presence", {
+                            chatId: chatIdStr,
+                            isAdminOnline: false,
+                            isUserOnline: isRoomUserActive(chatIdStr),
+                        });
+                    }
+                }
+            } else {
+                const userSockets = roomActiveUsersMap.get(chatIdStr);
+                if (userSockets) {
+                    userSockets.delete(socket.id);
+                    if (userSockets.size === 0) {
+                        roomActiveUsersMap.delete(chatIdStr);
+                        io.to(chatIdStr).emit("userStatusChanged", { chatId: chatIdStr, userId: userIdStr, isOnline: false });
+                    }
+                }
             }
         };
 
@@ -227,17 +297,18 @@ export const initializeSocket = (io: Server) => {
                     select: "name email role avatar"
                 });
 
-                // Transform avatar to only URL
+                // Transform avatar to URL string
+                const rawSender = populatedMessage.sender as any;
                 const transformedMessage = {
                     ...populatedMessage.toObject(),
                     sender: {
-                        ...populatedMessage.sender,
-                        avatar: (populatedMessage.sender as any).avatar?.url || null
+                        ...rawSender?.toObject ? rawSender.toObject() : rawSender,
+                        avatar: rawSender?.avatar?.url || rawSender?.avatar || null
                     }
                 };
 
-                io.to(chatId).emit("newMessage", transformedMessage);
-                io.to(chatId).emit("message:new", transformedMessage);
+                io.to(chatId.toString()).emit("newMessage", transformedMessage);
+                io.to(chatId.toString()).emit("message:new", transformedMessage);
             } catch (error) {
                 logger.error(`❌ sendMessage error: ${error instanceof Error ? error.message : String(error)}`);
                 socket.emit("error", "Failed to send message");
@@ -257,35 +328,33 @@ export const initializeSocket = (io: Server) => {
                     { $addToSet: { readBy: userId } }
                 );
                 
-                io.to(chatId).emit("messagesRead", { chatId, userId });
-                io.to(chatId).emit("message:read", { chatId, userId });
+                io.to(chatId.toString()).emit("messagesRead", { chatId, userId });
+                io.to(chatId.toString()).emit("message:read", { chatId, userId });
             } catch (error) {
                 logger.error(`❌ markAsRead error: ${error instanceof Error ? error.message : String(error)}`);
             }
         };
 
-        // Legacy events
         socket.on("joinRoom", handleJoinRoom);
-        socket.on("sendMessage", handleSendMessage);
-        socket.on("markAsRead", handleMarkAsRead);
-
-        // Standard support chat events
+        socket.on("leaveRoom", handleLeaveRoom);
         socket.on("conversation:join", handleJoinRoom);
         socket.on("conversation:leave", handleLeaveRoom);
+        socket.on("sendMessage", handleSendMessage);
         socket.on("message:send", handleSendMessage);
+        socket.on("markAsRead", handleMarkAsRead);
         socket.on("message:read", handleMarkAsRead);
 
         const handleTypingStartEvent = (data: any) => {
             const chatId = typeof data === "string" ? data : data?.chatId;
             if (chatId && userIdStr) {
-                io.to(chatId).emit("typing:start", { chatId, userId: userIdStr });
+                socket.to(chatId.toString()).emit("typing:start", { chatId: chatId.toString(), userId: userIdStr });
             }
         };
 
         const handleTypingStopEvent = (data: any) => {
             const chatId = typeof data === "string" ? data : data?.chatId;
             if (chatId && userIdStr) {
-                io.to(chatId).emit("typing:stop", { chatId, userId: userIdStr });
+                socket.to(chatId.toString()).emit("typing:stop", { chatId: chatId.toString(), userId: userIdStr });
             }
         };
 
@@ -301,6 +370,37 @@ export const initializeSocket = (io: Server) => {
 
         socket.on("disconnect", () => {
             cleanupSocketRateLimit(socket.id);
+
+            // Clean up from active rooms
+            if (socket.activeRooms && socket.activeRooms.size > 0) {
+                for (const activeChatId of socket.activeRooms) {
+                    if (userRole === "admin") {
+                        const adminSockets = roomActiveAdminsMap.get(activeChatId);
+                        if (adminSockets) {
+                            adminSockets.delete(socket.id);
+                            if (adminSockets.size === 0) {
+                                roomActiveAdminsMap.delete(activeChatId);
+                                io.to(activeChatId).emit("admin:status", { chatId: activeChatId, isOnline: false });
+                                io.to(activeChatId).emit("room:presence", {
+                                    chatId: activeChatId,
+                                    isAdminOnline: false,
+                                    isUserOnline: isRoomUserActive(activeChatId),
+                                });
+                            }
+                        }
+                    } else {
+                        const userSockets = roomActiveUsersMap.get(activeChatId);
+                        if (userSockets) {
+                            userSockets.delete(socket.id);
+                            if (userSockets.size === 0) {
+                                roomActiveUsersMap.delete(activeChatId);
+                                io.to(activeChatId).emit("userStatusChanged", { chatId: activeChatId, userId: userIdStr, isOnline: false });
+                            }
+                        }
+                    }
+                }
+            }
+
             if (userIdStr) {
                 const userSockets = onlineUsersMap.get(userIdStr);
                 if (userSockets) {

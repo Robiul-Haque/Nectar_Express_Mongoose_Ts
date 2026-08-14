@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import catchAsync from "../../utils/catchAsync";
 import sendResponse from "../../utils/sendResponse";
 import status from "http-status";
+import { isUserOnline } from "../../utils/socketUtils";
 import User from "./user.model";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
 
@@ -152,7 +153,12 @@ export const getAllUsers = catchAsync(async (req: Request, res: Response) => {
         totalPages: Math.ceil(total / limitNum)
     };
 
-    return sendResponse(res, status.OK, "Users retrieved successfully", pagination, users);
+    const usersWithOnlineStatus = users.map((u: any) => ({
+        ...u,
+        isOnline: u._id ? isUserOnline(u._id.toString()) : false
+    }));
+
+    return sendResponse(res, status.OK, "Users retrieved successfully", pagination, usersWithOnlineStatus);
 });
 
 export const toggleUserStatus = catchAsync(async (req: Request, res: Response) => {
