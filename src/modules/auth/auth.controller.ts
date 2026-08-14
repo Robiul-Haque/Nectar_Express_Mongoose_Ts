@@ -243,9 +243,10 @@ export const verifyOTP = catchAsync(async (req: Request, res: Response) => {
 
 export const emailLogin = catchAsync(async (req: Request, res: Response) => {
     const { email, password } = req.body;
+    const cleanEmail = (email || "").trim().toLowerCase();
 
     // ─── Brute-force: check lock BEFORE touching DB user ──────────────────────
-    const lockState = await checkAccountLock(email);
+    const lockState = await checkAccountLock(cleanEmail);
     if (lockState.locked) {
         const remainingMinutes = Math.ceil(lockState.remainingMs / 60000);
         return sendResponse(res, status.TOO_MANY_REQUESTS, `Account temporarily locked due to too many failed login attempts. Please try again in ${remainingMinutes} minute(s) or contact support.`, null, {
@@ -254,14 +255,14 @@ export const emailLogin = catchAsync(async (req: Request, res: Response) => {
         });
     }
 
-    const user = await User.findOne({ email, provider: "email" }).select("+password");
+    const user = await User.findOne({ email: cleanEmail, provider: "email" }).select("+password");
     if (!user) return sendResponse(res, status.UNAUTHORIZED, "Invalid email or password");
     if (!user.isActive) return sendResponse(res, status.UNAUTHORIZED, "Account is inactive. Please contact support");
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
         // Increment failed count & potentially lock
-        await handleFailedLogin(user._id.toString(), email, "email", req);
+        await handleFailedLogin(user._id.toString(), cleanEmail, "email", req);
         // Check if we just triggered a lock
         const newCount = (user.failedLoginCount || 0) + 1;
         const attemptsLeft = MAX_FAILED_ATTEMPTS - newCount;
@@ -274,7 +275,7 @@ export const emailLogin = catchAsync(async (req: Request, res: Response) => {
     if (!user.isVerified) return sendResponse(res, status.UNAUTHORIZED, "Account not verified");
 
     // ─── Successful login ─────────────────────────────────────────────────────
-    await handleSuccessfulLogin(user._id.toString(), email, "email", req);
+    await handleSuccessfulLogin(user._id.toString(), cleanEmail, "email", req);
 
     // Generate access Tokens
     const accessToken = createToken(
@@ -686,9 +687,10 @@ export const facebookLogin = catchAsync(async (req: Request, res: Response) => {
 // Admin controllers
 export const adminLogin = catchAsync(async (req: Request, res: Response) => {
     const { email, password } = req.body;
+    const cleanEmail = (email || "").trim().toLowerCase();
 
     // ─── Brute-force: check lock BEFORE touching DB user ──────────────────────
-    const lockState = await checkAccountLock(email);
+    const lockState = await checkAccountLock(cleanEmail);
     if (lockState.locked) {
         const remainingMinutes = Math.ceil(lockState.remainingMs / 60000);
         return sendResponse(res, status.TOO_MANY_REQUESTS, `Admin account temporarily locked. Please try again in ${remainingMinutes} minute(s).`, null, {
@@ -698,7 +700,7 @@ export const adminLogin = catchAsync(async (req: Request, res: Response) => {
     }
 
     // Check if email exists (any provider email account)
-    const user = await User.findOne({ email, provider: "email" }).select("+password role isVerified refreshTokenVersion failedLoginCount loginLockedUntil");
+    const user = await User.findOne({ email: cleanEmail, provider: "email" }).select("+password role isVerified refreshTokenVersion failedLoginCount loginLockedUntil");
 
     if (!user) return sendResponse(res, status.UNAUTHORIZED, "Admin email not found");
 
@@ -706,7 +708,7 @@ export const adminLogin = catchAsync(async (req: Request, res: Response) => {
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-        await handleFailedLogin(user._id.toString(), email, "email", req);
+        await handleFailedLogin(user._id.toString(), cleanEmail, "email", req);
         const newCount = (user.failedLoginCount || 0) + 1;
         const attemptsLeft = MAX_FAILED_ATTEMPTS - newCount;
         if (attemptsLeft <= 0) {
@@ -718,7 +720,7 @@ export const adminLogin = catchAsync(async (req: Request, res: Response) => {
     if (!user.isVerified) return sendResponse(res, status.FORBIDDEN, "Admin account not verified");
 
     // ─── Successful login ─────────────────────────────────────────────────────
-    await handleSuccessfulLogin(user._id.toString(), email, "email", req);
+    await handleSuccessfulLogin(user._id.toString(), cleanEmail, "email", req);
 
     // Access Token
     const accessToken = createToken(
