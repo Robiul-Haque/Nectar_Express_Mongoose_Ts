@@ -52,24 +52,28 @@ export const sendMessage = catchAsync(async (req: Request, res: Response) => {
         select: "name email role avatar"
     });
 
-    // Transform avatar to only URL
+    // Transform avatar to only URL while preserving all sender fields (_id, name, email, role)
+    const msgObj = populatedMessage.toObject();
+    const rawSender = msgObj.sender as any;
     const transformedMessage = {
-        ...populatedMessage.toObject(),
-        sender: {
-            ...populatedMessage.sender,
-            avatar: (populatedMessage.sender as any).avatar?.url || null
-        }
+        ...msgObj,
+        sender: rawSender ? {
+            ...rawSender,
+            avatar: rawSender?.avatar?.url || (typeof rawSender?.avatar === "string" ? rawSender.avatar : null)
+        } : null
     };
 
     const io = req.app.get("io");
     const chatIdStr = chatId.toString();
+    // Chat room gets both event names for backward compatibility
     io?.to(chatIdStr).emit("newMessage", transformedMessage);
     io?.to(chatIdStr).emit("message:new", transformedMessage);
 
+    // Participant personal rooms + admins: single event name to avoid amplification
     chat.participants.forEach((p: any) => {
         io?.to(p.toString()).emit("newMessage", transformedMessage);
-        io?.to(p.toString()).emit("message:new", transformedMessage);
     });
+    io?.to("admins").emit("newMessage", transformedMessage);
 
     return sendResponse(res, status.OK, "Message sent", null, transformedMessage);
 });
@@ -130,14 +134,15 @@ export const deleteMessageAdmin = catchAsync(async (req: Request, res: Response)
     });
 
     const io = req.app.get("io");
+    // Chat room gets both event names for backward compat
     io?.to(chatIdStr).emit("messageDeleted", { messageId, chatId: chatIdStr });
     io?.to(chatIdStr).emit("message:deleted", { messageId, chatId: chatIdStr });
 
+    // Participant personal rooms: single event name only
     const chat = await Chat.findById(message.chatId);
     if (chat && chat.participants) {
         chat.participants.forEach((p: any) => {
             io?.to(p.toString()).emit("messageDeleted", { messageId, chatId: chatIdStr });
-            io?.to(p.toString()).emit("message:deleted", { messageId, chatId: chatIdStr });
         });
     }
 
@@ -149,6 +154,24 @@ export const markAsRead = catchAsync(async (req: Request, res: Response) => {
     const { chatId } = req.params;
 
     await Message.updateMany({ chatId, readBy: { $ne: userId } }, { $addToSet: { readBy: userId } });
+
+    const io = req.app.get("io");
+    const chatIdStr = chatId.toString();
+    const userIdStr = userId.toString();
+
+    if (io) {
+        // Chat room gets both event names for backward compat
+        io.to(chatIdStr).emit("messagesRead", { chatId: chatIdStr, userId: userIdStr });
+        io.to(chatIdStr).emit("message:read", { chatId: chatIdStr, userId: userIdStr });
+
+        // Participant personal rooms: single event name only
+        const chat = await Chat.findById(chatId).select("participants").lean();
+        if (chat && chat.participants) {
+            chat.participants.forEach((p: any) => {
+                io.to(p.toString()).emit("messagesRead", { chatId: chatIdStr, userId: userIdStr });
+            });
+        }
+    }
 
     return sendResponse(res, status.OK, "Marked as read");
 });

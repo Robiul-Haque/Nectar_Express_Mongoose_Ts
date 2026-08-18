@@ -141,6 +141,9 @@ export const initializeSocket = (io: Server) => {
 
         if (userIdStr) {
             socket.join(userIdStr);
+            if (userRole === "admin") {
+                socket.join("admins");
+            }
 
             let userSockets = onlineUsersMap.get(userIdStr);
             if (!userSockets) {
@@ -297,18 +300,32 @@ export const initializeSocket = (io: Server) => {
                     select: "name email role avatar"
                 });
 
-                // Transform avatar to URL string
-                const rawSender = populatedMessage.sender as any;
+                // Transform avatar to URL string while preserving all sender fields
+                const msgObj = populatedMessage.toObject();
+                const rawSender = msgObj.sender as any;
                 const transformedMessage = {
-                    ...populatedMessage.toObject(),
-                    sender: {
-                        ...rawSender?.toObject ? rawSender.toObject() : rawSender,
-                        avatar: rawSender?.avatar?.url || rawSender?.avatar || null
-                    }
+                    ...msgObj,
+                    sender: rawSender ? {
+                        ...rawSender,
+                        avatar: rawSender?.avatar?.url || (typeof rawSender?.avatar === "string" ? rawSender.avatar : null)
+                    } : null
                 };
 
-                io.to(chatId.toString()).emit("newMessage", transformedMessage);
-                io.to(chatId.toString()).emit("message:new", transformedMessage);
+                const chatIdStr = chatId.toString();
+                // Emit to chat room (both event names for backward compatibility)
+                io.to(chatIdStr).emit("newMessage", transformedMessage);
+                io.to(chatIdStr).emit("message:new", transformedMessage);
+
+                // Emit to each participant's personal room and admins room.
+                // Only emit "newMessage" (not also "message:new") to avoid
+                // amplification — admins/participants already receive the event
+                // from the chat room they joined. The personal-room emit is a
+                // fallback for clients that haven't joined the chat room yet
+                // (e.g., chat list showing unread badge).
+                chat.participants.forEach((p: any) => {
+                    io.to(p.toString()).emit("newMessage", transformedMessage);
+                });
+                io.to("admins").emit("newMessage", transformedMessage);
             } catch (error) {
                 logger.error(`❌ sendMessage error: ${error instanceof Error ? error.message : String(error)}`);
                 socket.emit("error", "Failed to send message");
@@ -328,8 +345,19 @@ export const initializeSocket = (io: Server) => {
                     { $addToSet: { readBy: userId } }
                 );
                 
-                io.to(chatId.toString()).emit("messagesRead", { chatId, userId });
-                io.to(chatId.toString()).emit("message:read", { chatId, userId });
+                const chatIdStr = chatId.toString();
+                const userIdStr = userId.toString();
+                // Emit to chat room (both event names for backward compat)
+                io.to(chatIdStr).emit("messagesRead", { chatId: chatIdStr, userId: userIdStr });
+                io.to(chatIdStr).emit("message:read", { chatId: chatIdStr, userId: userIdStr });
+
+                // Participant personal rooms — single event name only
+                const chat = await Chat.findById(chatId).select("participants").lean();
+                if (chat && chat.participants) {
+                    chat.participants.forEach((p: any) => {
+                        io.to(p.toString()).emit("messagesRead", { chatId: chatIdStr, userId: userIdStr });
+                    });
+                }
             } catch (error) {
                 logger.error(`❌ markAsRead error: ${error instanceof Error ? error.message : String(error)}`);
             }
