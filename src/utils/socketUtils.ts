@@ -9,6 +9,8 @@ import { registerTrackingHandlers } from "../modules/tracking/tracking.socket";
 
 // In-memory global online user connection tracker (userId -> Set of active socket IDs)
 const onlineUsersMap = new Map<string, Set<string>>();
+// Track online admins globally
+const onlineAdminsSet = new Set<string>();
 
 // In-memory active room participants tracker
 // chatId -> Set of active socket IDs
@@ -19,6 +21,10 @@ export const isUserOnline = (userId: string): boolean => {
     if (!userId) return false;
     const socketSet = onlineUsersMap.get(userId.toString());
     return Boolean(socketSet && socketSet.size > 0);
+};
+
+export const isAnyAdminOnline = (): boolean => {
+    return onlineAdminsSet.size > 0;
 };
 
 export const isRoomAdminActive = (chatId: string): boolean => {
@@ -128,7 +134,7 @@ export const initializeSocket = (io: Server) => {
             socket.activeRooms = new Set<string>();
             next();
         } catch (error) {
-            logger.warn(`[Socket] Auth error: ${error instanceof Error ? error.message : String(error)}`);
+            logger.warn(`[SOCKET SERVER 🖥️] ⚠️ Auth error on socket ${socket.id}: ${error instanceof Error ? error.message : String(error)}`);
             next(new Error("Invalid or expired token"));
         }
     });
@@ -137,12 +143,14 @@ export const initializeSocket = (io: Server) => {
         const userId = socket.user?.sub;
         const userIdStr = userId ? userId.toString() : null;
         const userRole = socket.user?.role;
-        logger.info(`✅ Socket Connected: ${socket.id} | User: ${userIdStr} | Role: ${userRole}`);
+        logger.info(`[SOCKET SERVER 🖥️] 🟢 Connected: ${socket.id} | User: ${userIdStr} | Role: ${userRole}`);
 
         if (userIdStr) {
             socket.join(userIdStr);
             if (userRole === "admin") {
                 socket.join("admins");
+                onlineAdminsSet.add(userIdStr);
+                io.emit("admin:status", { isOnline: true });
             }
 
             let userSockets = onlineUsersMap.get(userIdStr);
@@ -157,13 +165,16 @@ export const initializeSocket = (io: Server) => {
         }
 
         socket.on("getOnlineUsers", () => {
+            logger.info(`[SOCKET SERVER 🖥️] 📥 Event "getOnlineUsers" from ${socket.id} (User: ${userIdStr})`);
             socket.emit("onlineUsersList", { onlineUserIds: Array.from(onlineUsersMap.keys()) });
         });
         socket.on("users:online:get", () => {
+            logger.info(`[SOCKET SERVER 🖥️] 📥 Event "users:online:get" from ${socket.id} (User: ${userIdStr})`);
             socket.emit("onlineUsersList", { onlineUserIds: Array.from(onlineUsersMap.keys()) });
         });
 
         socket.on("user:active", () => {
+            logger.info(`[SOCKET SERVER 🖥️] 📥 Event "user:active" from ${socket.id} (User: ${userIdStr})`);
             if (userIdStr) {
                 let userSockets = onlineUsersMap.get(userIdStr);
                 if (!userSockets) {
@@ -171,6 +182,9 @@ export const initializeSocket = (io: Server) => {
                     onlineUsersMap.set(userIdStr, userSockets);
                 }
                 userSockets.add(socket.id);
+                if (userRole === "admin") {
+                    onlineAdminsSet.add(userIdStr);
+                }
                 io.emit("userStatusChanged", { userId: userIdStr, isOnline: true });
                 io.emit("user:online", { userId: userIdStr });
             }
@@ -178,14 +192,20 @@ export const initializeSocket = (io: Server) => {
 
         const handleJoinRoom = async (data: any) => {
             const chatId = typeof data === "string" ? data : data?.chatId;
+            logger.info(`[SOCKET SERVER 🖥️] 📥 Event "joinRoom"/"conversation:join" from ${socket.id} | ChatId: ${chatId} | User: ${userIdStr} (${userRole})`);
             if (!checkSocketRateLimit(socket.id, "joinRoom")) {
+                logger.warn(`[SOCKET SERVER 🖥️] ⚠️ Rate limit exceeded for joinRoom: ${socket.id}`);
                 return socket.emit("error", "Rate limit exceeded. Please slow down.");
             }
-            if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) return socket.emit("error", "Invalid chatId");
+            if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) {
+                logger.warn(`[SOCKET SERVER 🖥️] ⚠️ Invalid chatId: ${chatId}`);
+                return socket.emit("error", "Invalid chatId");
+            }
 
             if (userRole !== "admin") {
                 const chat = await Chat.findById(chatId).select("participants").lean();
                 if (!chat || !chat.participants.some((p: any) => p.toString() === userIdStr)) {
+                    logger.warn(`[SOCKET SERVER 🖥️] ⛔ Unauthorized room access attempt by User: ${userIdStr} for Chat: ${chatId}`);
                     return socket.emit("error", "Unauthorized room access");
                 }
             }
@@ -202,7 +222,7 @@ export const initializeSocket = (io: Server) => {
                 }
                 adminSockets.add(socket.id);
 
-                logger.info(`🔵 Admin Joined Room: ${chatIdStr} | Socket: ${socket.id}`);
+                logger.info(`[SOCKET SERVER 🖥️] 🔵 Admin Joined Room: ${chatIdStr} | Socket: ${socket.id}`);
                 io.to(chatIdStr).emit("admin:status", { chatId: chatIdStr, isOnline: true });
                 io.to(chatIdStr).emit("room:presence", {
                     chatId: chatIdStr,
@@ -217,12 +237,12 @@ export const initializeSocket = (io: Server) => {
                 }
                 userSockets.add(socket.id);
 
-                logger.info(`🔵 Customer Joined Room: ${chatIdStr} | Socket: ${socket.id}`);
-                const hasAdmin = isRoomAdminActive(chatIdStr);
-                socket.emit("admin:status", { chatId: chatIdStr, isOnline: hasAdmin });
+                logger.info(`[SOCKET SERVER 🖥️] 🔵 Customer Joined Room: ${chatIdStr} | Socket: ${socket.id}`);
+                const isSupportActive = isRoomAdminActive(chatIdStr) || onlineAdminsSet.size > 0;
+                socket.emit("admin:status", { chatId: chatIdStr, isOnline: isSupportActive });
                 socket.emit("room:presence", {
                     chatId: chatIdStr,
-                    isAdminOnline: hasAdmin,
+                    isAdminOnline: isSupportActive,
                     isUserOnline: true,
                 });
                 io.to(chatIdStr).emit("userStatusChanged", { chatId: chatIdStr, userId: userIdStr, isOnline: true });
@@ -231,10 +251,10 @@ export const initializeSocket = (io: Server) => {
 
         const handleLeaveRoom = (data: any) => {
             const chatId = typeof data === "string" ? data : data?.chatId;
+            logger.info(`[SOCKET SERVER 🖥️] ⚪ Event "leaveRoom"/"conversation:leave" from ${socket.id} | ChatId: ${chatId}`);
             if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) return;
             const chatIdStr = chatId.toString();
 
-            logger.info(`⚪ Leave Room: ${chatIdStr} | Socket: ${socket.id}`);
             socket.leave(chatIdStr);
             socket.activeRooms?.delete(chatIdStr);
 
@@ -244,10 +264,11 @@ export const initializeSocket = (io: Server) => {
                     adminSockets.delete(socket.id);
                     if (adminSockets.size === 0) {
                         roomActiveAdminsMap.delete(chatIdStr);
-                        io.to(chatIdStr).emit("admin:status", { chatId: chatIdStr, isOnline: false });
+                        const isSupportActive = onlineAdminsSet.size > 0;
+                        io.to(chatIdStr).emit("admin:status", { chatId: chatIdStr, isOnline: isSupportActive });
                         io.to(chatIdStr).emit("room:presence", {
                             chatId: chatIdStr,
-                            isAdminOnline: false,
+                            isAdminOnline: isSupportActive,
                             isUserOnline: isRoomUserActive(chatIdStr),
                         });
                     }
@@ -265,8 +286,10 @@ export const initializeSocket = (io: Server) => {
         };
 
         const handleSendMessage = async ({ chatId, content, type = "text" }: { chatId: string; content: string; type?: "text" | "image"; }) => {
+            logger.info(`[SOCKET SERVER 🖥️] 💬 Event "sendMessage"/"message:send" from ${socket.id} | ChatId: ${chatId} | Type: ${type}`);
             try {
                 if (!checkSocketRateLimit(socket.id, "sendMessage")) {
+                    logger.warn(`[SOCKET SERVER 🖥️] ⚠️ Rate limit exceeded for sendMessage: ${socket.id}`);
                     return socket.emit("error", "Rate limit exceeded. Please slow down.");
                 }
                 if (!userId) return socket.emit("error", "Unauthorized");
@@ -312,29 +335,24 @@ export const initializeSocket = (io: Server) => {
                 };
 
                 const chatIdStr = chatId.toString();
-                // Emit to chat room (both event names for backward compatibility)
+                logger.info(`[SOCKET SERVER 🖥️] 📢 Broadcasting "newMessage" to Room: ${chatIdStr}`);
                 io.to(chatIdStr).emit("newMessage", transformedMessage);
                 io.to(chatIdStr).emit("message:new", transformedMessage);
 
-                // Emit to each participant's personal room and admins room.
-                // Only emit "newMessage" (not also "message:new") to avoid
-                // amplification — admins/participants already receive the event
-                // from the chat room they joined. The personal-room emit is a
-                // fallback for clients that haven't joined the chat room yet
-                // (e.g., chat list showing unread badge).
                 chat.participants.forEach((p: any) => {
                     io.to(p.toString()).emit("newMessage", transformedMessage);
                 });
                 io.to("admins").emit("newMessage", transformedMessage);
             } catch (error) {
-                logger.error(`❌ sendMessage error: ${error instanceof Error ? error.message : String(error)}`);
+                logger.error(`[SOCKET SERVER 🖥️] ❌ sendMessage error: ${error instanceof Error ? error.message : String(error)}`);
                 socket.emit("error", "Failed to send message");
             }
         };
 
         const handleMarkAsRead = async (chatIdParam: string | { chatId: string }) => {
+            const chatId = typeof chatIdParam === "string" ? chatIdParam : chatIdParam?.chatId;
+            logger.info(`[SOCKET SERVER 🖥️] 📖 Event "markAsRead"/"message:read" from ${socket.id} | ChatId: ${chatId}`);
             try {
-                const chatId = typeof chatIdParam === "string" ? chatIdParam : chatIdParam?.chatId;
                 if (!checkSocketRateLimit(socket.id, "markAsRead")) {
                     return socket.emit("error", "Rate limit exceeded. Please slow down.");
                 }
@@ -347,11 +365,13 @@ export const initializeSocket = (io: Server) => {
                 
                 const chatIdStr = chatId.toString();
                 const userIdStr = userId.toString();
-                // Emit to chat room (both event names for backward compat)
+                logger.info(`[SOCKET SERVER 🖥️] 📢 Broadcasting "messagesRead" to Room: ${chatIdStr}`);
                 io.to(chatIdStr).emit("messagesRead", { chatId: chatIdStr, userId: userIdStr });
                 io.to(chatIdStr).emit("message:read", { chatId: chatIdStr, userId: userIdStr });
 
-                // Participant personal rooms — single event name only
+                io.to("admins").emit("messagesRead", { chatId: chatIdStr, userId: userIdStr });
+                io.to("admins").emit("message:read", { chatId: chatIdStr, userId: userIdStr });
+
                 const chat = await Chat.findById(chatId).select("participants").lean();
                 if (chat && chat.participants) {
                     chat.participants.forEach((p: any) => {
@@ -359,7 +379,7 @@ export const initializeSocket = (io: Server) => {
                     });
                 }
             } catch (error) {
-                logger.error(`❌ markAsRead error: ${error instanceof Error ? error.message : String(error)}`);
+                logger.error(`[SOCKET SERVER 🖥️] ❌ markAsRead error: ${error instanceof Error ? error.message : String(error)}`);
             }
         };
 
@@ -374,15 +394,19 @@ export const initializeSocket = (io: Server) => {
 
         const handleTypingStartEvent = (data: any) => {
             const chatId = typeof data === "string" ? data : data?.chatId;
+            logger.info(`[SOCKET SERVER 🖥️] ✍️ Event "typing:start" from ${socket.id} | ChatId: ${chatId} | User: ${userIdStr}`);
             if (chatId && userIdStr) {
                 socket.to(chatId.toString()).emit("typing:start", { chatId: chatId.toString(), userId: userIdStr });
+                io.to("admins").emit("typing:start", { chatId: chatId.toString(), userId: userIdStr });
             }
         };
 
         const handleTypingStopEvent = (data: any) => {
             const chatId = typeof data === "string" ? data : data?.chatId;
+            logger.info(`[SOCKET SERVER 🖥️] ✍️ Event "typing:stop" from ${socket.id} | ChatId: ${chatId} | User: ${userIdStr}`);
             if (chatId && userIdStr) {
                 socket.to(chatId.toString()).emit("typing:stop", { chatId: chatId.toString(), userId: userIdStr });
+                io.to("admins").emit("typing:stop", { chatId: chatId.toString(), userId: userIdStr });
             }
         };
 
@@ -390,6 +414,7 @@ export const initializeSocket = (io: Server) => {
         socket.on("typing:stop", handleTypingStopEvent);
 
         socket.on("payment-listen", () => {
+            logger.info(`[SOCKET SERVER 🖥️] 💳 Event "payment-listen" from ${socket.id} (User: ${userIdStr})`);
             if (userId) socket.join(userId);
         });
 
@@ -408,10 +433,11 @@ export const initializeSocket = (io: Server) => {
                             adminSockets.delete(socket.id);
                             if (adminSockets.size === 0) {
                                 roomActiveAdminsMap.delete(activeChatId);
-                                io.to(activeChatId).emit("admin:status", { chatId: activeChatId, isOnline: false });
+                                const isSupportActive = onlineAdminsSet.size > 1; // since this one is disconnecting
+                                io.to(activeChatId).emit("admin:status", { chatId: activeChatId, isOnline: isSupportActive });
                                 io.to(activeChatId).emit("room:presence", {
                                     chatId: activeChatId,
-                                    isAdminOnline: false,
+                                    isAdminOnline: isSupportActive,
                                     isUserOnline: isRoomUserActive(activeChatId),
                                 });
                             }
@@ -435,12 +461,16 @@ export const initializeSocket = (io: Server) => {
                     userSockets.delete(socket.id);
                     if (userSockets.size === 0) {
                         onlineUsersMap.delete(userIdStr);
+                        if (userRole === "admin") {
+                            onlineAdminsSet.delete(userIdStr);
+                            io.emit("admin:status", { isOnline: onlineAdminsSet.size > 0 });
+                        }
                         io.emit("userStatusChanged", { userId: userIdStr, isOnline: false });
                         io.emit("user:offline", { userId: userIdStr });
                     }
                 }
             }
-            logger.info(`🔴 Disconnected: ${socket.id} | User: ${userIdStr}`);
+            logger.info(`[SOCKET SERVER 🖥️] 🔴 Disconnected: ${socket.id} | User: ${userIdStr}`);
         });
     });
 };

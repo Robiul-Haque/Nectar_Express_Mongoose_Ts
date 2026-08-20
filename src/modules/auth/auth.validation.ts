@@ -30,9 +30,14 @@ export const emailLoginSchema = z.object({
 
 export const refreshTokenSchema = z.object({
     body: z.object({
-        refreshToken: z.string().min(1, "Refresh token not found").min(20, "Invalid refresh token format"),
-    })
-        .strict()
+        refreshToken: z.string().min(20, "Invalid refresh token format").optional(),
+    }).optional(),
+    cookies: z.object({
+        refreshToken: z.string().optional(),
+    }).optional(),
+}).refine((data) => Boolean(data.body?.refreshToken || data.cookies?.refreshToken), {
+    message: "Refresh token not found in request body or cookies",
+    path: ["body", "refreshToken"],
 });
 
 export const forgotPasswordSchema = z.object({

@@ -160,9 +160,11 @@ export const markAsRead = catchAsync(async (req: Request, res: Response) => {
     const userIdStr = userId.toString();
 
     if (io) {
-        // Chat room gets both event names for backward compat
         io.to(chatIdStr).emit("messagesRead", { chatId: chatIdStr, userId: userIdStr });
         io.to(chatIdStr).emit("message:read", { chatId: chatIdStr, userId: userIdStr });
+
+        io.to("admins").emit("messagesRead", { chatId: chatIdStr, userId: userIdStr });
+        io.to("admins").emit("message:read", { chatId: chatIdStr, userId: userIdStr });
 
         // Participant personal rooms: single event name only
         const chat = await Chat.findById(chatId).select("participants").lean();

@@ -98,6 +98,7 @@ export const registerTrackingHandlers = (io: Server, socket: AuthenticatedSocket
                     return callback?.({ status: "error", message: "Access denied" });
                 }
 
+                logger.info(`[SOCKET SERVER 🖥️] 🚗 Event "joinOrderTrack" from Socket: ${socket.id} (User: ${socket.user?.sub}) | orderId: ${orderId}`);
                 const roomName = `order:track:${orderId}`;
                 socket.join(roomName);
                 logger.info(`🔵 Socket ${socket.id} (User: ${userId}) joined tracking room: ${roomName}`);
@@ -140,6 +141,7 @@ export const registerTrackingHandlers = (io: Server, socket: AuthenticatedSocket
                 }
 
                 const { latitude, longitude, bearing, speed, orderId } = payload;
+                logger.info(`[SOCKET SERVER 🖥️] 📍 Event "driver:update-location" from Socket: ${socket.id} (Driver: ${socket.user?.sub}) | lat: ${latitude}, lng: ${longitude}`);
 
                 if (typeof latitude !== "number" || typeof longitude !== "number") {
                     socket.emit("error", "Coordinates latitude and longitude must be numbers");

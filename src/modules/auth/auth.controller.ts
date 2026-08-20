@@ -314,8 +314,8 @@ export const emailLogin = catchAsync(async (req: Request, res: Response) => {
 
 
 export const refreshToken = catchAsync(async (req: Request, res: Response) => {
-    // Get refresh token from cookie
-    const refreshToken = req.cookies?.refreshToken;
+    // Get refresh token from cookie or body
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
     if (!refreshToken) return sendResponse(res, status.UNAUTHORIZED, "Refresh token not found");
 
     // Verify refresh token — accept both user and admin audiences
@@ -387,7 +387,7 @@ export const refreshToken = catchAsync(async (req: Request, res: Response) => {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    return sendResponse(res, status.OK, "Tokens refreshed successfully", null, { accessToken });
+    return sendResponse(res, status.OK, "Tokens refreshed successfully", null, { accessToken, refreshToken: newRefreshToken });
 });
 
 export const logout = catchAsync(async (req: Request, res: Response) => {
