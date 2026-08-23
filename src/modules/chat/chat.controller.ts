@@ -7,6 +7,7 @@ import Order from "../order/order.model";
 import status from "http-status";
 import sendResponse from "../../utils/sendResponse";
 import { isUserOnline } from "../../utils/socketUtils";
+import logger from "../../utils/logger";
 
 export const createChat = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user!.sub;
@@ -40,6 +41,9 @@ export const createChat = catchAsync(async (req: Request, res: Response) => {
             status: "open",
             lastUpdated: new Date()
         });
+        logger.info(`[CHAT CREATED 💬] User: ${userId} (${userRole}) started new chat with ${receiverId} (Type: ${determinedChatType}) | ChatId: ${chat._id}`);
+    } else {
+        logger.info(`[CHAT OPENED 💬] User: ${userId} (${userRole}) opened existing chat with ${receiverId} | ChatId: ${chat._id}`);
     }
 
     return sendResponse(res, status.OK, "Chat ready", null, chat);
@@ -195,6 +199,7 @@ export const updateChatStatus = catchAsync(async (req: Request, res: Response) =
 
     const io = req.app.get("io");
     if (io) {
+        logger.info(`[CHAT STATUS 🔄] Chat: ${chatId} status updated to "${newStatus}" by User: ${req.user?.sub} (${req.user?.role})`);
         io.emit("conversation:status", { chatId, status: newStatus });
         io.emit("chatStatusUpdated", { chatId, status: newStatus });
         io.to(chatId).emit("conversation:status", { chatId, status: newStatus });

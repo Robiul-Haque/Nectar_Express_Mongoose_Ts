@@ -285,8 +285,75 @@ export const initializeSocket = (io: Server) => {
             }
         };
 
+        const broadcastTypingEvent = async (data: any, isTyping: boolean) => {
+            const chatId = typeof data === "string" ? data : (data?.chatId || data?.room);
+            if (!chatId || !mongoose.Types.ObjectId.isValid(chatId)) return;
+            const chatIdStr = chatId.toString();
+            const roleTag = (userRole || "user").toUpperCase();
+
+            logger.info(`[CHAT TYPING ✍️] [${roleTag}] User: ${userIdStr} ${isTyping ? "STARTED" : "STOPPED"} typing in Chat: ${chatIdStr}`);
+
+            const payload = {
+                chatId: chatIdStr,
+                userId: userIdStr,
+                senderId: userIdStr,
+                isTyping,
+                typing: isTyping,
+                role: userRole || "user"
+            };
+
+            const emitToTarget = (targetRoom: string, isSelfRoom = false) => {
+                const emitter = isSelfRoom ? socket.to(targetRoom) : io.to(targetRoom);
+                if (isTyping) {
+                    emitter.emit("typing:start", payload);
+                    emitter.emit("typingStarted", payload);
+                    emitter.emit("startTyping", payload);
+                } else {
+                    emitter.emit("typing:stop", payload);
+                    emitter.emit("typingStopped", payload);
+                    emitter.emit("stopTyping", payload);
+                }
+                emitter.emit("typing", payload);
+                emitter.emit("user:typing", payload);
+                emitter.emit("userTyping", payload);
+            };
+
+            // 1. Broadcast to the chat room (excluding the current sender socket)
+            emitToTarget(chatIdStr, true);
+
+            // 2. Broadcast to admin room
+            if (userRole !== "admin") {
+                emitToTarget("admins");
+            }
+
+            // 3. Broadcast to all other chat participants' personal rooms
+            try {
+                const chat = await Chat.findById(chatIdStr).select("participants").lean();
+                if (chat && chat.participants) {
+                    chat.participants.forEach((p: any) => {
+                        const pId = p.toString();
+                        if (pId !== userIdStr) {
+                            emitToTarget(pId);
+                        }
+                    });
+                }
+            } catch (err) {
+                // silent
+            }
+        };
+
+        const handleTypingStart = (data: any) => broadcastTypingEvent(data, true);
+        const handleTypingStop = (data: any) => broadcastTypingEvent(data, false);
+        const handleGenericTyping = (data: any) => {
+            const isTyping = typeof data === "object" && data !== null
+                ? (("isTyping" in data ? Boolean(data.isTyping) : ("typing" in data ? Boolean(data.typing) : true)))
+                : true;
+            broadcastTypingEvent(data, isTyping);
+        };
+
         const handleSendMessage = async ({ chatId, content, type = "text" }: { chatId: string; content: string; type?: "text" | "image"; }) => {
-            logger.info(`[SOCKET SERVER 🖥️] 💬 Event "sendMessage"/"message:send" from ${socket.id} | ChatId: ${chatId} | Type: ${type}`);
+            const roleTag = (userRole || "user").toUpperCase();
+            logger.info(`[SOCKET SERVER 🖥️] 💬 Event "sendMessage"/"message:send" received from Socket: ${socket.id} | User: ${userIdStr} (${roleTag}) | Chat: ${chatId}`);
             try {
                 if (!checkSocketRateLimit(socket.id, "sendMessage")) {
                     logger.warn(`[SOCKET SERVER 🖥️] ⚠️ Rate limit exceeded for sendMessage: ${socket.id}`);
@@ -335,7 +402,12 @@ export const initializeSocket = (io: Server) => {
                 };
 
                 const chatIdStr = chatId.toString();
-                logger.info(`[SOCKET SERVER 🖥️] 📢 Broadcasting "newMessage" to Room: ${chatIdStr}`);
+                const senderName = transformedMessage?.sender?.name || (userRole === "admin" ? "Admin" : "User");
+
+                // Display detailed chat message log in backend console
+                logger.info(`[CHAT MESSAGE 💬] [${roleTag}] "${senderName}" (ID: ${userIdStr}) -> Room ${chatIdStr}: "${transformedMessage.content}"`);
+                logger.info(`[SOCKET SERVER 🖥️] 📢 Broadcasting "newMessage" & "message:new" to Room: ${chatIdStr}`);
+
                 io.to(chatIdStr).emit("newMessage", transformedMessage);
                 io.to(chatIdStr).emit("message:new", transformedMessage);
 
@@ -343,6 +415,9 @@ export const initializeSocket = (io: Server) => {
                     io.to(p.toString()).emit("newMessage", transformedMessage);
                 });
                 io.to("admins").emit("newMessage", transformedMessage);
+
+                // Instantly clear typing indicator
+                broadcastTypingEvent({ chatId }, false);
             } catch (error) {
                 logger.error(`[SOCKET SERVER 🖥️] ❌ sendMessage error: ${error instanceof Error ? error.message : String(error)}`);
                 socket.emit("error", "Failed to send message");
@@ -351,7 +426,8 @@ export const initializeSocket = (io: Server) => {
 
         const handleMarkAsRead = async (chatIdParam: string | { chatId: string }) => {
             const chatId = typeof chatIdParam === "string" ? chatIdParam : chatIdParam?.chatId;
-            logger.info(`[SOCKET SERVER 🖥️] 📖 Event "markAsRead"/"message:read" from ${socket.id} | ChatId: ${chatId}`);
+            const roleTag = (userRole || "user").toUpperCase();
+            logger.info(`[CHAT READ 📖] [${roleTag}] User: ${userIdStr} marked messages as read in Chat: ${chatId}`);
             try {
                 if (!checkSocketRateLimit(socket.id, "markAsRead")) {
                     return socket.emit("error", "Rate limit exceeded. Please slow down.");
@@ -392,26 +468,15 @@ export const initializeSocket = (io: Server) => {
         socket.on("markAsRead", handleMarkAsRead);
         socket.on("message:read", handleMarkAsRead);
 
-        const handleTypingStartEvent = (data: any) => {
-            const chatId = typeof data === "string" ? data : data?.chatId;
-            logger.info(`[SOCKET SERVER 🖥️] ✍️ Event "typing:start" from ${socket.id} | ChatId: ${chatId} | User: ${userIdStr}`);
-            if (chatId && userIdStr) {
-                socket.to(chatId.toString()).emit("typing:start", { chatId: chatId.toString(), userId: userIdStr });
-                io.to("admins").emit("typing:start", { chatId: chatId.toString(), userId: userIdStr });
-            }
-        };
-
-        const handleTypingStopEvent = (data: any) => {
-            const chatId = typeof data === "string" ? data : data?.chatId;
-            logger.info(`[SOCKET SERVER 🖥️] ✍️ Event "typing:stop" from ${socket.id} | ChatId: ${chatId} | User: ${userIdStr}`);
-            if (chatId && userIdStr) {
-                socket.to(chatId.toString()).emit("typing:stop", { chatId: chatId.toString(), userId: userIdStr });
-                io.to("admins").emit("typing:stop", { chatId: chatId.toString(), userId: userIdStr });
-            }
-        };
-
-        socket.on("typing:start", handleTypingStartEvent);
-        socket.on("typing:stop", handleTypingStopEvent);
+        socket.on("typing:start", handleTypingStart);
+        socket.on("typing:stop", handleTypingStop);
+        socket.on("startTyping", handleTypingStart);
+        socket.on("stopTyping", handleTypingStop);
+        socket.on("typingStarted", handleTypingStart);
+        socket.on("typingStopped", handleTypingStop);
+        socket.on("typing", handleGenericTyping);
+        socket.on("user:typing", handleGenericTyping);
+        socket.on("userTyping", handleGenericTyping);
 
         socket.on("payment-listen", () => {
             logger.info(`[SOCKET SERVER 🖥️] 💳 Event "payment-listen" from ${socket.id} (User: ${userIdStr})`);

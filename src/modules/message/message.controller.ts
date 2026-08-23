@@ -5,6 +5,7 @@ import sendResponse from "../../utils/sendResponse";
 import Chat from "../chat/chat.model";
 import { deleteImage, uploadImageStream } from "../../utils/cloudinary";
 import Message from "./message.model";
+import logger from "../../utils/logger";
 
 export const sendMessage = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user!.sub;
@@ -65,6 +66,11 @@ export const sendMessage = catchAsync(async (req: Request, res: Response) => {
 
     const io = req.app.get("io");
     const chatIdStr = chatId.toString();
+    const roleTag = (userRole || "user").toUpperCase();
+    const senderName = transformedMessage?.sender?.name || (userRole === "admin" ? "Admin" : "User");
+
+    logger.info(`[CHAT REST MESSAGE 💬] [${roleTag}] "${senderName}" (ID: ${userId}) -> Room ${chatIdStr}: "${transformedMessage.content}"`);
+
     // Chat room gets both event names for backward compatibility
     io?.to(chatIdStr).emit("newMessage", transformedMessage);
     io?.to(chatIdStr).emit("message:new", transformedMessage);
@@ -126,6 +132,8 @@ export const deleteMessageAdmin = catchAsync(async (req: Request, res: Response)
     const chatIdStr = message.chatId.toString();
     await Message.findByIdAndDelete(messageId);
 
+    logger.info(`[CHAT MESSAGE DELETED 🗑️] [${(req.user?.role || 'ADMIN').toUpperCase()}] (ID: ${req.user?.sub}) deleted message: ${messageId} from Chat: ${chatIdStr}`);
+
     // Update chat's lastMessage in MongoDB to the latest remaining message
     const latestMsg = await Message.findOne({ chatId: message.chatId }).sort({ createdAt: -1 });
     await Chat.findByIdAndUpdate(message.chatId, {
@@ -151,6 +159,7 @@ export const deleteMessageAdmin = catchAsync(async (req: Request, res: Response)
 
 export const markAsRead = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user!.sub;
+    const userRole = req.user?.role || "user";
     const { chatId } = req.params;
 
     await Message.updateMany({ chatId, readBy: { $ne: userId } }, { $addToSet: { readBy: userId } });
@@ -158,6 +167,8 @@ export const markAsRead = catchAsync(async (req: Request, res: Response) => {
     const io = req.app.get("io");
     const chatIdStr = chatId.toString();
     const userIdStr = userId.toString();
+
+    logger.info(`[CHAT READ 📖] [${userRole.toUpperCase()}] User: ${userIdStr} marked messages as read via REST in Chat: ${chatIdStr}`);
 
     if (io) {
         io.to(chatIdStr).emit("messagesRead", { chatId: chatIdStr, userId: userIdStr });
